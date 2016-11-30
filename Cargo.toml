@@ -1,0 +1,9 @@
+[package]
+name = "push-relay"
+version = "0.1.0"
+authors = ["Danilo Bargen <danilo.bargen@threema.ch>"]
+
+[dependencies]
+hyper = "0.9"
+iron = "0.4"
+router = "0.4"
