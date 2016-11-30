@@ -1,6 +1,6 @@
 # FCM Push Relay
 
-This server accepts push requests via HTTPS and notifies the FCM push service.
+This server accepts push requests via HTTP and notifies the FCM push service.
 
 ## Request Format
 
@@ -24,3 +24,8 @@ You need the Rust compiler. Then simply run
     cargo run
 
 ...to build and start the server in debug mode.
+
+## Deployment
+
+- Always create a build in release mode: `cargo build --release`
+- Use a reverse proxy with proper TLS termination (e.g. Nginx)
