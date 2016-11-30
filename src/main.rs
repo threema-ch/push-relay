@@ -6,11 +6,12 @@
 extern crate hyper;
 extern crate iron;
 extern crate router;
+extern crate urlencoded;
 
 mod server;
 
 fn main() {
     let listen = "localhost:3000";
     println!("Starting Push Relay Server on {}", &listen);
-    server::serve(listen);
+    server::serve(listen).unwrap();
 }
