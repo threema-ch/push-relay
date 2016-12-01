@@ -2,8 +2,6 @@
 
 This server accepts push requests via HTTP and notifies the GCM push service.
 
-Requirements: Rust 1.11.0+
-
 ## Request Format
 
 - POST request to `/push`
@@ -31,7 +29,13 @@ It is sent with a TTL of 5 minutes.
 
 ## Running
 
-You need the Rust compiler. Then simply run
+You need the Rust compiler (1.11+). First, create a `config.ini` file that
+looks like this:
+
+    [gcm]
+    api_key = "your-api-key"
+
+Then simply run
 
     cargo run
 
