@@ -2,6 +2,8 @@
 
 This server accepts push requests via HTTP and notifies the GCM push service.
 
+Requirements: Rust 1.11.0+
+
 ## Request Format
 
 - POST request to `/push`
