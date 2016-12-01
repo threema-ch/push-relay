@@ -3,6 +3,7 @@ use iron::{Iron, Request, Response, IronResult, Plugin, Listening, status};
 use iron::error::HttpResult;
 use router::Router;
 use urlencoded::UrlEncodedBody;
+use ::gcm::send_push;
 
 /// Immediately return a "HTTP 400 Bad Request" response with the specified
 /// error message as JSON in the response body.
@@ -29,9 +30,18 @@ fn handler(req: &mut Request) -> IronResult<Response> {
     let push_token = unwrap_or_bad_request!(params.get("token"));
     let session_public_key = unwrap_or_bad_request!(params.get("session"));
 
-    println!("Send Push token to FCM:\n  > {}\n  > Session: {}", push_token, session_public_key);
-
-    Ok(Response::with((status::Ok, "Hello World")))
+    println!("Sending push message to GCM:\n  > {}\n  > Session: {}", push_token, session_public_key);
+    match send_push("TODO", &push_token, &session_public_key) {
+        Ok(response) => {
+            println!("  => Success!");
+            println!("  => Details: {:?}", response);
+            Ok(Response::with(status::NoContent))
+        }
+        Err(e) => {
+            println!("  => Error: {}", e);
+            Ok(Response::with((status::InternalServerError, "Push not successful")))
+        }
+    }
 }
 
 pub fn serve<T: ToSocketAddrs>(listen_on: T) -> HttpResult<Listening> {

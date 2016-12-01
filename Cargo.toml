@@ -4,7 +4,10 @@ version = "0.1.0"
 authors = ["Danilo Bargen <danilo.bargen@threema.ch>"]
 
 [dependencies]
-hyper = "0.9"
 iron = "0.4"
 router = "0.4"
 urlencoded = "0.4"
+hyper = "0.9"
+quick-error = "1.1"
+rustc-serialize = "0.3"
+chrono = "0.2"
