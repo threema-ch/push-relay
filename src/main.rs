@@ -65,5 +65,8 @@ fn main() {
     });
 
     info!("Starting Push Relay Server on {}", &listen);
-    server::serve(api_key, listen).unwrap();
+    server::serve(api_key, listen).unwrap_or_else(|e| {
+        error!("Could not start relay server: {}", e);
+        process::exit(3);
+    });
 }
