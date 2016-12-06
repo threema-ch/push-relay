@@ -42,7 +42,7 @@ fn main() {
         .get_matches();
 
     let listen = matches.value_of("listen").unwrap_or("localhost:3000");
-    let configfile = matches.value_of("config.ini").unwrap_or("config.ini");
+    let configfile = matches.value_of("config").unwrap_or("config.ini");
 
     // Load config file
     let config = Ini::load_from_file(configfile).unwrap_or_else(|e| {
