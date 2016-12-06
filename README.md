@@ -41,7 +41,14 @@ Then simply run
 
 ...to build and start the server in debug mode.
 
+## Logging
+
+To see debug logging:
+
+    export RUST_LOG=push_relay=debug
+
 ## Deployment
 
 - Always create a build in release mode: `cargo build --release`
 - Use a reverse proxy with proper TLS termination (e.g. Nginx)
+- Set `RUST_LOG=push_relay=info` env variable

@@ -45,15 +45,15 @@ impl Handler for PushHandler {
         let push_token = unwrap_or_bad_request!(params.get("token"));
         let session_public_key = unwrap_or_bad_request!(params.get("session"));
 
-        println!("Sending push message to GCM:\n  > {}\n  > Session: {}", push_token, session_public_key);
+        info!("Sending push message to GCM for session {}", session_public_key);
         match send_push(&self.api_key, &push_token, &session_public_key) {
             Ok(response) => {
-                println!("  => Success!");
-                println!("  => Details: {:?}", response);
+                debug!("Success!");
+                debug!("Details: {:?}", response);
                 Ok(Response::with(status::NoContent))
             }
             Err(e) => {
-                println!("  => Error: {}", e);
+                warn!("Error: {}", e);
                 Ok(Response::with((status::InternalServerError, "Push not successful")))
             }
         }

@@ -5,12 +5,14 @@
 
 extern crate chrono;
 extern crate clap;
+extern crate env_logger;
 extern crate hyper;
 extern crate ini;
 extern crate iron;
 extern crate router;
 extern crate rustc_serialize;
 extern crate urlencoded;
+#[macro_use] extern crate log;
 #[macro_use] extern crate quick_error;
 
 mod server;
@@ -26,6 +28,8 @@ const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 const DESCRIPTION: &'static str = "This server accepts push requests via HTTP and notifies the GCM push service.";
 
 fn main() {
+    env_logger::init().expect("Could not initialize env_logger");
+
     let matches = App::new(NAME)
         .version(VERSION)
         .about(DESCRIPTION)
@@ -46,20 +50,20 @@ fn main() {
 
     // Load config file
     let config = Ini::load_from_file(configfile).unwrap_or_else(|e| {
-        println!("Could not open config file: {}", e);
+        error!("Could not open config file: {}", e);
         process::exit(1);
     });
 
     // Determine GCM API key
     let config_gcm = config.section(Some("gcm".to_owned())).unwrap_or_else(|| {
-        println!("Invalid config file: No [gcm] section in {}", configfile);
+        error!("Invalid config file: No [gcm] section in {}", configfile);
         process::exit(2);
     });
     let api_key = config_gcm.get("api_key").unwrap_or_else(|| {
-        println!("Invalid config file: No 'api_key' key in [gcm] section in {}", configfile);
+        error!("Invalid config file: No 'api_key' key in [gcm] section in {}", configfile);
         process::exit(2);
     });
 
-    println!("Starting Push Relay Server on {}", &listen);
+    info!("Starting Push Relay Server on {}", &listen);
     server::serve(api_key, listen).unwrap();
 }
