@@ -1,11 +1,14 @@
 use std::net::ToSocketAddrs;
-use iron::{Iron, Request, Response, IronResult, Plugin, Listening, Handler, status};
+use iron::{Iron, Request, Response, IronResult, Plugin, Listening, Handler, Chain};
+use iron::status;
 use iron::error::HttpResult;
 use router::Router;
 use urlencoded::UrlEncodedBody;
 use ::gcm::send_push;
+use ::cors::CorsMiddleware;
 
-pub fn serve<S: ToString, T: ToSocketAddrs>(api_key: S, listen_on: T) -> HttpResult<Listening> {
+pub fn serve<S, T>(api_key: S, listen_on: T, cors_hosts: Vec<String>) -> HttpResult<Listening>
+                   where S: ToString, T: ToSocketAddrs {
     // Create new router
     let mut router = Router::new();
 
@@ -13,8 +16,12 @@ pub fn serve<S: ToString, T: ToSocketAddrs>(api_key: S, listen_on: T) -> HttpRes
     let handler = PushHandler { api_key: api_key.to_string() };
     router.post("/push", handler, "push");
 
+    // Add middleware
+    let mut chain = Chain::new(router);
+    chain.link_after(CorsMiddleware::new(cors_hosts));
+
     // Start server
-    Iron::new(router).http(listen_on)
+    Iron::new(chain).http(listen_on)
 }
 
 pub struct PushHandler {

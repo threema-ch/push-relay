@@ -18,6 +18,7 @@ extern crate urlencoded;
 mod server;
 mod gcm;
 mod errors;
+mod cors;
 
 use std::process;
 use clap::{App, Arg};
@@ -64,8 +65,15 @@ fn main() {
         process::exit(2);
     });
 
+    // Determine allowed CORS hosts
+    let cors_allowed_hosts: Vec<String> = config.section(Some("cors".to_owned()))
+        .and_then(|section| section.get("allowed_hosts"))
+        .map(|hosts| hosts.split(' ').map(ToString::to_string).collect::<Vec<String>>())
+        .unwrap_or(vec![]);
+
     info!("Starting Push Relay Server on {}", &listen);
-    server::serve(api_key, listen).unwrap_or_else(|e| {
+    info!("Allowed CORS hosts: {}", &cors_allowed_hosts.join(" "));
+    server::serve(api_key, listen, cors_allowed_hosts).unwrap_or_else(|e| {
         error!("Could not start relay server: {}", e);
         process::exit(3);
     });

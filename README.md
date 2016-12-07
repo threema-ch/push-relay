@@ -35,6 +35,9 @@ looks like this:
     [gcm]
     api_key = "your-api-key"
 
+    [cors]
+    allowed_hosts = web.threema.ch localhost 127.0.0.1 ::1
+
 Then simply run
 
     cargo run
