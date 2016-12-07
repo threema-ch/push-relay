@@ -35,8 +35,8 @@ struct CorsHandler {
 impl Handler for CorsHandler {
     fn handle(&self, req: &mut Request) -> IronResult<Response> {
         // Extract origin header
-        let origin_host = match req.headers.get::<headers::Origin>() {
-            Some(origin) => origin.host.hostname.clone(),
+        let origin = match req.headers.get::<headers::Origin>() {
+            Some(origin) => origin.clone(),
             None => {
                 warn!("Not a valid CORS request: Missing Origin header");
                 return Ok(Response::with((status::BadRequest, "Invalid CORS request: Origin header missing")));
@@ -44,12 +44,12 @@ impl Handler for CorsHandler {
         };
 
         // Verify origin header
-        if self.allowed_hosts.contains(&origin_host) {
+        if self.allowed_hosts.contains(&origin.host.hostname) {
             let mut res = try!(self.handler.handle(req));
-            res.headers.set(headers::AccessControlAllowOrigin::Value(origin_host.clone()));
+            res.headers.set(origin);
             Ok(res)
         } else {
-            warn!("Got disallowed CORS request from {}", &origin_host);
+            warn!("Got disallowed CORS request from {}", &origin.host.hostname);
             Ok(Response::with((status::BadRequest, "Invalid CORS request: Origin not allowed")))
         }
     }
