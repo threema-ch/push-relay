@@ -18,7 +18,7 @@ pub fn serve<S, T>(api_key: S, listen_on: T, cors_hosts: Vec<String>) -> HttpRes
 
     // Add middleware
     let mut chain = Chain::new(router);
-    chain.link_after(CorsMiddleware::new(cors_hosts));
+    chain.link_around(CorsMiddleware::new(cors_hosts));
 
     // Start server
     Iron::new(chain).http(listen_on)

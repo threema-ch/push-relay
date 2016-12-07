@@ -10,7 +10,7 @@ This server accepts push requests via HTTP and notifies the GCM push service.
 
 Example:
 
-    curl -X POST [::1]:3000/push -d "token=asdf&session=123deadbeef"
+    curl -X POST -H "Origin: https://localhost" localhost:3000/push -d "token=asdf&session=123deadbeef"
 
 Possible response codes:
 
