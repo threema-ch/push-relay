@@ -36,7 +36,7 @@ looks like this:
     api_key = "your-api-key"
 
     [cors]
-    allowed_hosts = web.threema.ch localhost 127.0.0.1 ::1
+    allowed_hosts = web.threema.ch localhost 127.0.0.1 [::1]
 
 Then simply run
 
