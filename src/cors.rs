@@ -45,8 +45,17 @@ impl Handler for CorsHandler {
 
         // Verify origin header
         if self.allowed_hosts.contains(&origin.host.hostname) {
+
+            // Everything OK, process request
             let mut res = try!(self.handler.handle(req));
-            res.headers.set(origin);
+
+            // Add Access-Control-Allow-Origin header to response
+            let header = match origin.host.port {
+                Some(port) => format!("{}://{}:{}", &origin.scheme, &origin.host.hostname, &port),
+                None => format!("{}://{}", &origin.scheme, &origin.host.hostname),
+            };
+            res.headers.set(headers::AccessControlAllowOrigin::Value(header));
+
             Ok(res)
         } else {
             warn!("Got disallowed CORS request from {}", &origin.host.hostname);
