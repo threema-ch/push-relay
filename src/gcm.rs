@@ -27,6 +27,7 @@ pub enum Priority {
 struct Payload<'a> {
     to: &'a str,
     priority: Priority,
+    time_to_live: u32,
     data: Data<'a>,
 }
 
@@ -52,9 +53,9 @@ fn get_timestamp() -> i64 {
 }
 
 /// Send a push notification.
-pub fn send_push(api_key: &str, push_token: &str, session: &str, priority: Priority) -> Result<MessageResponse, PushError> {
+pub fn send_push(api_key: &str, push_token: &str, session: &str, priority: Priority, ttl: u32) -> Result<MessageResponse, PushError> {
     let data = Data { wcs: session, wct: get_timestamp() };
-    let payload = Payload { to: push_token, priority: priority, data: data };
+    let payload = Payload { to: push_token, priority: priority, time_to_live: ttl, data: data };
 
     let client = Client::new();
     let payload_string = json::encode(&payload).expect("Could not encode JSON payload");

@@ -53,7 +53,7 @@ impl Handler for PushHandler {
         let session_public_key = unwrap_or_bad_request!(params.get("session"));
 
         info!("Sending push message to GCM for session {}", session_public_key);
-        match send_push(&self.api_key, &push_token, &session_public_key, Priority::high) {
+        match send_push(&self.api_key, &push_token, &session_public_key, Priority::high, 45) {
             Ok(response) => {
                 debug!("Success!");
                 debug!("Details: {:?}", response);
