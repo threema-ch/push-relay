@@ -17,8 +17,16 @@ struct Data<'a> {
 }
 
 #[derive(Debug, RustcEncodable)]
+#[allow(non_camel_case_types)]
+pub enum Priority {
+    high,
+    normal,
+}
+
+#[derive(Debug, RustcEncodable)]
 struct Payload<'a> {
     to: &'a str,
+    priority: Priority,
     data: Data<'a>,
 }
 
@@ -44,15 +52,16 @@ fn get_timestamp() -> i64 {
 }
 
 /// Send a push notification.
-pub fn send_push(api_key: &str, push_token: &str, session: &str) -> Result<MessageResponse, PushError> {
+pub fn send_push(api_key: &str, push_token: &str, session: &str, priority: Priority) -> Result<MessageResponse, PushError> {
     let data = Data { wcs: session, wct: get_timestamp() };
-    let payload = Payload { to: push_token, data: data };
+    let payload = Payload { to: push_token, priority: priority, data: data };
 
     let client = Client::new();
-    let payload = json::encode(&payload).expect("Could not encode JSON payload");
+    let payload_string = json::encode(&payload).expect("Could not encode JSON payload");
+    debug!("Payload: {}", payload_string);
     let mut response = try!(client
         .post(GCM_ENDPOINT)
-        .body(&payload)
+        .body(&payload_string)
         .header(Authorization(format!("key={}", api_key)))
         .header(ContentType::json())
         .send());
@@ -73,5 +82,17 @@ pub fn send_push(api_key: &str, push_token: &str, session: &str) -> Result<Messa
         StatusCode::BadRequest => Err(PushError::ProcessingError("400 Bad Request".into())),
         StatusCode::Unauthorized => Err(PushError::ProcessingError("Unauthorized. Is the API token correct?".into())),
         _ => Err(PushError::Other(format!("Unknown error: {}", body))),
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use rustc_serialize::json;
+    use super::*;
+
+    #[test]
+    fn test_priority_serialization() {
+        assert_eq!(json::encode(&Priority::high).unwrap(), "\"high\"");
+        assert_eq!(json::encode(&Priority::normal).unwrap(), "\"normal\"");
     }
 }

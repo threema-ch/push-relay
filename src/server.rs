@@ -4,7 +4,7 @@ use iron::status;
 use iron::error::HttpResult;
 use router::Router;
 use urlencoded::UrlEncodedBody;
-use ::gcm::send_push;
+use ::gcm::{send_push, Priority};
 use ::cors::CorsMiddleware;
 
 pub fn serve<S, T>(api_key: S, listen_on: T, cors_hosts: Vec<String>) -> HttpResult<Listening>
@@ -53,7 +53,7 @@ impl Handler for PushHandler {
         let session_public_key = unwrap_or_bad_request!(params.get("session"));
 
         info!("Sending push message to GCM for session {}", session_public_key);
-        match send_push(&self.api_key, &push_token, &session_public_key) {
+        match send_push(&self.api_key, &push_token, &session_public_key, Priority::high) {
             Ok(response) => {
                 debug!("Success!");
                 debug!("Details: {:?}", response);
