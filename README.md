@@ -29,8 +29,8 @@ It is sent with a TTL of 5 minutes.
 
 ## Running
 
-You need the Rust compiler (1.11+). First, create a `config.ini` file that
-looks like this:
+You need the Rust compiler (current stable). First, create a `config.ini` file
+that looks like this:
 
     [gcm]
     api_key = "your-api-key"
