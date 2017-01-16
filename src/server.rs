@@ -1,13 +1,14 @@
+use std::collections::HashSet;
 use std::net::ToSocketAddrs;
 use iron::{Iron, Request, Response, IronResult, Plugin, Listening, Handler, Chain};
 use iron::status;
 use iron::error::HttpResult;
+use iron_cors::CorsMiddleware;
 use router::Router;
 use urlencoded::UrlEncodedBody;
 use ::gcm::{send_push, Priority};
-use ::cors::CorsMiddleware;
 
-pub fn serve<S, T>(api_key: S, listen_on: T, cors_hosts: Vec<String>) -> HttpResult<Listening>
+pub fn serve<S, T>(api_key: S, listen_on: T, cors_hosts: HashSet<String>) -> HttpResult<Listening>
                    where S: ToString, T: ToSocketAddrs {
     // Create new router
     let mut router = Router::new();
@@ -18,7 +19,7 @@ pub fn serve<S, T>(api_key: S, listen_on: T, cors_hosts: Vec<String>) -> HttpRes
 
     // Add middleware
     let mut chain = Chain::new(router);
-    chain.link_around(CorsMiddleware::new(cors_hosts));
+    chain.link_around(CorsMiddleware::with_whitelist(cors_hosts));
 
     // Start server
     Iron::new(chain).http(listen_on)

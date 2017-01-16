@@ -1,10 +1,11 @@
 [package]
 name = "push-relay"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Danilo Bargen <danilo.bargen@threema.ch>"]
 
 [dependencies]
 iron = "0.4"
+iron-cors = "0.4"
 router = "0.4"
 urlencoded = "0.4"
 hyper = "0.9"

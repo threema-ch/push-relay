@@ -9,6 +9,7 @@ extern crate env_logger;
 extern crate hyper;
 extern crate ini;
 extern crate iron;
+extern crate iron_cors;
 extern crate router;
 extern crate rustc_serialize;
 extern crate urlencoded;
@@ -18,8 +19,8 @@ extern crate urlencoded;
 mod server;
 mod gcm;
 mod errors;
-mod cors;
 
+use std::collections::HashSet;
 use std::process;
 use clap::{App, Arg};
 use ini::Ini;
@@ -66,13 +67,13 @@ fn main() {
     });
 
     // Determine allowed CORS hosts
-    let cors_allowed_hosts: Vec<String> = config.section(Some("cors".to_owned()))
+    let cors_allowed_hosts: HashSet<String> = config.section(Some("cors".to_owned()))
         .and_then(|section| section.get("allowed_hosts"))
-        .map(|hosts| hosts.split(' ').map(ToString::to_string).collect::<Vec<String>>())
-        .unwrap_or(vec![]);
+        .map(|hosts| hosts.split(' ').map(ToString::to_string).collect::<HashSet<_>>())
+        .unwrap_or(HashSet::new());
 
     info!("Starting Push Relay Server on {}", &listen);
-    info!("Allowed CORS hosts: {}", &cors_allowed_hosts.join(" "));
+    info!("Allowed CORS hosts: {:?}", &cors_allowed_hosts);
     server::serve(api_key, listen, cors_allowed_hosts).unwrap_or_else(|e| {
         error!("Could not start relay server: {}", e);
         process::exit(3);
