@@ -1,6 +1,6 @@
 [package]
 name = "push-relay"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Danilo Bargen <danilo.bargen@threema.ch>"]
 
 [dependencies]
