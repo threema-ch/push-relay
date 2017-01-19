@@ -76,7 +76,10 @@ impl Handler for PushHandler {
         };
 
         // Send push notification
-        info!("Sending push message to GCM for session {}", session_public_key);
+        info!("Sending push message to GCM for session {} [v{}]", session_public_key, match version {
+            Some(v) => v.to_string(),
+            None => "?".to_string(),
+        });
         match send_push(&self.api_key, &push_token, version, &session_public_key, Priority::high, 45) {
             Ok(response) => {
                 debug!("Success!");

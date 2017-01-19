@@ -42,15 +42,10 @@ that looks like this:
 
 Then simply run
 
+    export RUST_LOG=push_relay=debug
     cargo run
 
 ...to build and start the server in debug mode.
-
-## Logging
-
-To see debug logging:
-
-    export RUST_LOG=push_relay=debug
 
 ## Deployment
 
