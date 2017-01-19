@@ -24,8 +24,8 @@ Possible response codes:
 The GCM message contains the following two data keys:
 
 - `wcs`: Webclient session (public permanent key of the initiator), `string`
-- `wtc`: Unix epoch timestamp of the request, `i64`
-- `wtv`: Protocol version, `u16` or `null`
+- `wct`: Unix epoch timestamp of the request, `i64`
+- `wcv`: Protocol version, `u16` or `null`
 
 The TTL of the message is currently hardcoded to 45 seconds.
 
