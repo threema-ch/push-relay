@@ -6,11 +6,12 @@ This server accepts push requests via HTTP and notifies the GCM push service.
 
 - POST request to `/push`
 - Request body must use `application/x-www-form-urlencoded` encoding
-- The keys `token` (GCM token) and `session` (public permanent key of the initiator) must be present
+- The keys `token` (GCM token), `session` (public permanent key of the
+  initiator) and `version` (webclient protocol version) must be present
 
 Example:
 
-    curl -X POST -H "Origin: https://localhost" localhost:3000/push -d "token=asdf&session=123deadbeef"
+    curl -X POST -H "Origin: https://localhost" localhost:3000/push -d "token=asdf&session=123deadbeef&version=3"
 
 Possible response codes:
 
@@ -22,10 +23,11 @@ Possible response codes:
 
 The GCM message contains the following two data keys:
 
-- `wcs`: Webclient session (public permanent key of the initiator)
-- `wtc`: Unix epoch timestamp of the request
+- `wcs`: Webclient session (public permanent key of the initiator), `string`
+- `wtc`: Unix epoch timestamp of the request, `i64`
+- `wtv`: Protocol version, `u16` or `null`
 
-It is sent with a TTL of 5 minutes.
+The TTL of the message is currently hardcoded to 45 seconds.
 
 ## Running
 

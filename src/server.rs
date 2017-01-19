@@ -52,9 +52,32 @@ impl Handler for PushHandler {
         }
         let push_token = unwrap_or_bad_request!(params.get("token"));
         let session_public_key = unwrap_or_bad_request!(params.get("session"));
+        let version: Option<u16> = match params.get("version") {
+            // At least one version parameter was specified
+            Some(val) => {
+                // More than one version parameter
+                if val.len() != 1 {
+                    return Ok(Response::with((status::BadRequest, "You may only specify the version parameter once")))
+                }
+                // Exactly one version parameter
+                match val[0].trim().parse::<u16>() {
+                    Ok(parsed) => Some(parsed),
+                    Err(e) => {
+                        warn!("Got push request with invalid version param: {:?}", e);
+                        return Ok(Response::with((status::BadRequest, "Invalid version parameter")))
+                    },
+                }
+            },
+            // No version parameter was specified
+            None => {
+                warn!("Got push request without version param");
+                None
+            },
+        };
 
+        // Send push notification
         info!("Sending push message to GCM for session {}", session_public_key);
-        match send_push(&self.api_key, &push_token, &session_public_key, Priority::high, 45) {
+        match send_push(&self.api_key, &push_token, version, &session_public_key, Priority::high, 45) {
             Ok(response) => {
                 debug!("Success!");
                 debug!("Details: {:?}", response);
