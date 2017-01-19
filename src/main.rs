@@ -72,7 +72,7 @@ fn main() {
         .map(|hosts| hosts.split(' ').map(ToString::to_string).collect::<HashSet<_>>())
         .unwrap_or(HashSet::new());
 
-    info!("Starting Push Relay Server on {}", &listen);
+    info!("Starting Push Relay Server {} on {}", VERSION, &listen);
     info!("Allowed CORS hosts: {:?}", &cors_allowed_hosts);
     server::serve(api_key, listen, cors_allowed_hosts).unwrap_or_else(|e| {
         error!("Could not start relay server: {}", e);
