@@ -6,7 +6,14 @@ use rustc_serialize::json;
 use chrono::UTC;
 use ::errors::PushError;
 
+#[cfg(test)]
+use mockito::SERVER_URL;
+
+#[cfg(not(test))]
 static GCM_ENDPOINT: &'static str = "https://android.googleapis.com/gcm/send";
+#[cfg(test)]
+static GCM_ENDPOINT: &'static str = SERVER_URL;
+static GCM_PATH: &'static str = "/gcm/send";
 
 #[derive(Debug, RustcEncodable)]
 struct Data<'a> {
@@ -65,8 +72,9 @@ pub fn send_push(api_key: &str, push_token: &str, version: Option<u16>, session:
     let client = Client::new();
     let payload_string = json::encode(&payload).expect("Could not encode JSON payload");
     debug!("Payload: {}", payload_string);
+    let url = GCM_ENDPOINT.to_string() + GCM_PATH;
     let mut response = try!(client
-        .post(GCM_ENDPOINT)
+        .post(&url)
         .body(&payload_string)
         .header(Authorization(format!("key={}", api_key)))
         .header(ContentType::json())
@@ -77,8 +85,10 @@ pub fn send_push(api_key: &str, push_token: &str, version: Option<u16>, session:
 
     match response.status {
         StatusCode::Ok => {
-            let data = try!(json::decode::<MessageResponse>(&body).map_err(|_| {
-                PushError::Other(format!("Could not decode response JSON: {}", &body))
+            let data = try!(json::decode::<MessageResponse>(&body).map_err(|e| {
+                PushError::Other(
+                    format!("Could not decode response JSON: `{}` (Reason: {}", &body, e)
+                )
             }));
             match data.success {
                 1 => Ok(data),

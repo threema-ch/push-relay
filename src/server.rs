@@ -35,7 +35,7 @@ impl Handler for PushHandler {
         // Parse urlencoded POST body
         let params = match req.get_ref::<UrlEncodedBody>() {
             Ok(hashmap) => hashmap,
-            Err(_) => return Ok(Response::with((status::BadRequest, "Invalid or missing parameters"))),
+            Err(_) => return Ok(Response::with((status::BadRequest, "Invalid content-type or missing parameters"))),
         };
 
         // Get parameters
@@ -93,4 +93,60 @@ impl Handler for PushHandler {
         }
     }
 
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate iron;
+    extern crate iron_test;
+    extern crate mockito;
+
+    use iron::status;
+    use iron::headers::{Headers, ContentType};
+    use iron::mime::{Mime, TopLevel, SubLevel};
+    use self::iron_test::{request, response};
+    use self::mockito::mock;
+    use super::PushHandler;
+
+    fn build_default_headers() -> Headers {
+        let mut headers = Headers::new();
+        headers.set(ContentType(Mime(TopLevel::Application, SubLevel::WwwFormUrlEncoded, vec![])));
+        headers
+    }
+
+    /// A request without parameters should result in a HTTP 400 response.
+    #[test]
+    fn test_missing_param() {
+        let handler = PushHandler { api_key: "asdf".into() };
+        let response = request::post("http://localhost:3000/push",
+                                     build_default_headers(),
+                                     "",
+                                     &handler).unwrap();
+        let status = response.status;
+        let body = response::extract_body_to_string(response);
+        assert_eq!(status, Some(status::BadRequest), "{}", body);
+        assert_eq!(&body, "Invalid content-type or missing parameters");
+    }
+
+    #[test]
+    fn test_ok() {
+        mock("POST", "/gcm/send")
+            .with_status(200)
+            .with_body(r#"{
+                "multicast_id": 1,
+                "success": 1,
+                "failure": 0,
+                "canonical_ids": 0,
+                "results": null
+            }"#)
+            .create();
+        let handler = PushHandler { api_key: "asdf".into() };
+        let response = request::post("http://localhost:3000/push",
+                                     build_default_headers(),
+                                     "token=asdf&session=deadbeef&version=1",
+                                     &handler).unwrap();
+        let status = response.status;
+        let body = response::extract_body_to_string(response);
+        assert_eq!(status, Some(status::NoContent), "{}", body);
+    }
 }

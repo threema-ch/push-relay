@@ -16,3 +16,7 @@ clap = "2"
 rust-ini = "0.10"
 log = "0.3"
 env_logger = "0.4"
+
+[dev-dependencies]
+iron-test = "0.4.0"
+mockito = "0.2"

@@ -16,6 +16,8 @@ extern crate urlencoded;
 #[macro_use] extern crate log;
 #[macro_use] extern crate quick_error;
 
+#[cfg(test)] extern crate mockito;
+
 mod server;
 mod gcm;
 mod errors;
