@@ -1,7 +1,9 @@
 use std::collections::HashSet;
 use std::net::ToSocketAddrs;
-use iron::{Iron, Request, Response, IronResult, Plugin, Listening, Handler, Chain};
-use iron::status;
+use iron::{Iron, Request, Response, IronResult, Plugin, Listening, Handler, Chain, status};
+use iron::mime::{Mime, TopLevel, SubLevel};
+use iron::headers::ContentType;
+use iron::modifiers::Header;
 use iron::error::HttpResult;
 use iron_cors::CorsMiddleware;
 use router::Router;
@@ -32,10 +34,19 @@ pub struct PushHandler {
 impl Handler for PushHandler {
 
     fn handle(&self, req: &mut Request) -> IronResult<Response> {
+
+        let content_type = Header(ContentType(Mime(TopLevel::Text, SubLevel::Plain, vec![])));
+
+        macro_rules! bad_request {
+            ($text:expr) => {
+                Response::with((status::BadRequest, $text, content_type))
+            };
+        }
+
         // Parse urlencoded POST body
         let params = match req.get_ref::<UrlEncodedBody>() {
             Ok(hashmap) => hashmap,
-            Err(_) => return Ok(Response::with((status::BadRequest, "Invalid content-type or missing parameters"))),
+            Err(_) => return Ok(bad_request!("Invalid content-type or missing parameters")),
         };
 
         // Get parameters
@@ -44,9 +55,9 @@ impl Handler for PushHandler {
                 match $val {
                     Some(val) => match val.len() {
                         1 => val[0].clone(),
-                        _ => return Ok(Response::with((status::BadRequest, "Invalid or missing parameters"))),
+                        _ => return Ok(bad_request!("Invalid or missing parameters")),
                     },
-                    None => return Ok(Response::with((status::BadRequest, "Invalid or missing parameters"))),
+                    None => return Ok(bad_request!("Invalid or missing parameters")),
                 }
             };
         }
@@ -57,14 +68,14 @@ impl Handler for PushHandler {
             Some(val) => {
                 // More than one version parameter
                 if val.len() != 1 {
-                    return Ok(Response::with((status::BadRequest, "You may only specify the version parameter once")))
+                    return Ok(bad_request!("You may only specify the version parameter once"));
                 }
                 // Exactly one version parameter
                 match val[0].trim().parse::<u16>() {
                     Ok(parsed) => Some(parsed),
                     Err(e) => {
                         warn!("Got push request with invalid version param: {:?}", e);
-                        return Ok(Response::with((status::BadRequest, "Invalid version parameter")))
+                        return Ok(bad_request!("Invalid version parameter"))
                     },
                 }
             },
@@ -84,7 +95,7 @@ impl Handler for PushHandler {
             Ok(response) => {
                 debug!("Success!");
                 debug!("Details: {:?}", response);
-                Ok(Response::with(status::NoContent))
+                Ok(Response::with((status::NoContent, content_type)))
             }
             Err(e) => {
                 warn!("Error: {}", e);
@@ -146,7 +157,13 @@ mod tests {
                                      "token=asdf&session=deadbeef&version=1",
                                      &handler).unwrap();
         let status = response.status;
+        let headers = response.headers.clone();
         let body = response::extract_body_to_string(response);
         assert_eq!(status, Some(status::NoContent), "{}", body);
+        assert_eq!(
+            headers.get::<ContentType>(),
+            Some(&ContentType(Mime(TopLevel::Text, SubLevel::Plain, vec![]))),
+            "Response should set the Content-Type to `text/plain`"
+        );
     }
 }
