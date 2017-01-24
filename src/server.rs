@@ -99,7 +99,9 @@ impl Handler for PushHandler {
             }
             Err(e) => {
                 warn!("Error: {}", e);
-                Ok(Response::with((status::InternalServerError, "Push not successful")))
+                Ok(Response::with(
+                    (status::InternalServerError, "Push not successful", content_type)
+                ))
             }
         }
     }
