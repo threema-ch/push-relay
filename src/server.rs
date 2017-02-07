@@ -50,46 +50,35 @@ impl Handler for PushHandler {
 
         // Get parameters
         macro_rules! unwrap_or_bad_request {
-            ($val:expr) => {
+            ($val:expr, $name:expr) => {
                 match $val {
                     Some(val) => match val.len() {
                         1 => val[0].clone(),
-                        _ => return Ok(bad_request!("Invalid or missing parameters")),
+                        _ => {
+                            warn!("Param specified more than once: {}", $name);
+                            return Ok(bad_request!("Invalid or missing parameters"));
+                        },
                     },
-                    None => return Ok(bad_request!("Invalid or missing parameters")),
+                    None => {
+                        warn!("Param missing: {}", $name);
+                        return Ok(bad_request!("Invalid or missing parameters"));
+                    }
                 }
             };
         }
-        let push_token = unwrap_or_bad_request!(params.get("token"));
-        let session_public_key = unwrap_or_bad_request!(params.get("session"));
-        let version: Option<u16> = match params.get("version") {
-            // At least one version parameter was specified
-            Some(val) => {
-                // More than one version parameter
-                if val.len() != 1 {
-                    return Ok(bad_request!("You may only specify the version parameter once"));
-                }
-                // Exactly one version parameter
-                match val[0].trim().parse::<u16>() {
-                    Ok(parsed) => Some(parsed),
-                    Err(e) => {
-                        warn!("Got push request with invalid version param: {:?}", e);
-                        return Ok(bad_request!("Invalid version parameter"))
-                    },
-                }
-            },
-            // No version parameter was specified
-            None => {
-                warn!("Got push request without version param");
-                None
+        let push_token = unwrap_or_bad_request!(params.get("token"), "token");
+        let session_public_key = unwrap_or_bad_request!(params.get("session"), "session");
+        let version_string = unwrap_or_bad_request!(params.get("version"), "version");
+        let version: u16 = match version_string.trim().parse::<u16>() {
+            Ok(parsed) => parsed,
+            Err(e) => {
+                warn!("Got push request with invalid version param: {:?}", e);
+                return Ok(bad_request!("Invalid or missing parameters"))
             },
         };
 
         // Send push notification
-        info!("Sending push message to GCM for session {} [v{}]", session_public_key, match version {
-            Some(v) => v.to_string(),
-            None => "?".to_string(),
-        });
+        info!("Sending push message to GCM for session {} [v{}]", session_public_key, version);
         match send_push(&self.api_key, &push_token, version, &session_public_key, Priority::high, 45) {
             Ok(response) => {
                 debug!("Success!");

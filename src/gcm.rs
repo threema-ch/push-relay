@@ -22,7 +22,7 @@ struct Data<'a> {
     /// Timestamp
     wct: i64,
     /// Version
-    wcv: Option<u16>,
+    wcv: u16,
 }
 
 #[derive(Debug, RustcEncodable)]
@@ -64,7 +64,7 @@ fn get_timestamp() -> i64 {
 /// Send a push notification.
 ///
 /// TODO: Once the next release is out, remove Option around version.
-pub fn send_push(api_key: &str, push_token: &str, version: Option<u16>, session: &str,
+pub fn send_push(api_key: &str, push_token: &str, version: u16, session: &str,
                  priority: Priority, ttl: u32) -> Result<MessageResponse, PushError> {
     let data = Data { wcs: session, wct: get_timestamp(), wcv: version };
     let payload = Payload { to: push_token, priority: priority, time_to_live: ttl, data: data };
