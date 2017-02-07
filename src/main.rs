@@ -22,7 +22,6 @@ mod server;
 mod gcm;
 mod errors;
 
-use std::collections::HashSet;
 use std::process;
 use clap::{App, Arg};
 use ini::Ini;
@@ -68,15 +67,8 @@ fn main() {
         process::exit(2);
     });
 
-    // Determine allowed CORS hosts
-    let cors_allowed_hosts: HashSet<String> = config.section(Some("cors".to_owned()))
-        .and_then(|section| section.get("allowed_hosts"))
-        .map(|hosts| hosts.split(' ').map(ToString::to_string).collect::<HashSet<_>>())
-        .unwrap_or(HashSet::new());
-
     info!("Starting Push Relay Server {} on {}", VERSION, &listen);
-    info!("Allowed CORS hosts: {:?}", &cors_allowed_hosts);
-    server::serve(api_key, listen, cors_allowed_hosts).unwrap_or_else(|e| {
+    server::serve(api_key, listen).unwrap_or_else(|e| {
         error!("Could not start relay server: {}", e);
         process::exit(3);
     });
