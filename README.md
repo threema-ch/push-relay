@@ -21,9 +21,10 @@ Possible response codes:
 
 ## GCM Message Format
 
-The GCM message contains the following two data keys:
+The GCM message contains the following data keys:
 
-- `wcs`: Webclient session (public permanent key of the initiator), `string`
+- `wcs`: Webclient session (sha256 hash of the public permanent key of the
+  initiator), `string`
 - `wct`: Unix epoch timestamp of the request, `i64`
 - `wcv`: Protocol version, `u16`
 
