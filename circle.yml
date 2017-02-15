@@ -9,8 +9,8 @@ dependencies:
 
 test:
   override:
-    - docker run --rm -v $(pwd):/code quay.io/dbrgn/rust-xenial /bin/bash -c 'cd /code && cargo test'
-    - docker run --rm -v $(pwd):/code quay.io/dbrgn/rust-xenial /bin/bash -c 'cd /code && cargo build --release'
+    - docker run -v $(pwd):/code quay.io/dbrgn/rust-xenial /bin/bash -c 'cd /code && cargo test'
+    - docker run -v $(pwd):/code quay.io/dbrgn/rust-xenial /bin/bash -c 'cd /code && cargo build --release'
 
 general:
   artifacts:
