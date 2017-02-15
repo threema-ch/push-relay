@@ -1,0 +1,12 @@
+machine:
+  services:
+    - docker
+
+dependencies:
+  override:
+    - docker info
+    - docker pull quay.io/dbrgn/rust-xenial
+
+test:
+  override:
+    - docker run --rm -v $(pwd):/code quay.io/dbrgn/rust-xenial /bin/bash -c 'cd /code && cargo test'
