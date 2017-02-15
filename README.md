@@ -50,3 +50,14 @@ Then simply run
 - Always create a build in release mode: `cargo build --release`
 - Use a reverse proxy with proper TLS termination (e.g. Nginx)
 - Set `RUST_LOG=push_relay=info` env variable
+
+## License
+
+Licensed under either of
+
+ * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
+   http://www.apache.org/licenses/LICENSE-2.0)
+ * MIT license ([LICENSE-MIT](LICENSE-MIT) or
+   http://opensource.org/licenses/MIT)
+
+at your option.
