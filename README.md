@@ -1,5 +1,8 @@
 # GCM Push Relay
 
+[![CircleCI][circle-ci-badge]][circle-ci]
+[![License][license-badge]][license]
+
 This server accepts push requests via HTTP and notifies the GCM push service.
 
 ## Request Format
@@ -61,3 +64,9 @@ Licensed under either of
    http://opensource.org/licenses/MIT)
 
 at your option.
+
+<!-- Badges -->
+[circle-ci]: https://circleci.com/gh/threema-ch/push-relay/tree/master
+[circle-ci-badge]: https://circleci.com/gh/threema-ch/push-relay/tree/master.svg?style=shield
+[license]: https://github.com/threema-ch/push-relay#license
+[license-badge]: https://img.shields.io/badge/License-Apache%202.0%20%2f%20MIT-blue.svg
