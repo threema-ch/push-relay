@@ -7,6 +7,7 @@ extern crate chrono;
 extern crate clap;
 extern crate env_logger;
 extern crate hyper;
+extern crate hyper_native_tls;
 extern crate ini;
 extern crate iron;
 extern crate iron_cors;
