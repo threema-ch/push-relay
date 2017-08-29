@@ -28,7 +28,7 @@ The GCM message contains the following data keys:
 - `wct`: Unix epoch timestamp of the request, `i64`
 - `wcv`: Protocol version, `u16`
 
-The TTL of the message is currently hardcoded to 45 seconds.
+The TTL of the message is currently hardcoded to 90 seconds.
 
 ## Running
 
