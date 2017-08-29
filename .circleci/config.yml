@@ -1,0 +1,8 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: rust:1.19
+    steps:
+      - checkout
+      - run: cargo build && cargo test
