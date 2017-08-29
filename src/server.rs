@@ -131,7 +131,7 @@ mod tests {
 
     #[test]
     fn test_ok() {
-        mock("POST", "/gcm/send")
+        let _m = mock("POST", "/gcm/send")
             .with_status(200)
             .with_body(r#"{
                 "multicast_id": 1,

@@ -3,7 +3,7 @@ use hyper::Client;
 use hyper::header::{ContentType, Authorization};
 use hyper::status::StatusCode;
 use rustc_serialize::json;
-use chrono::UTC;
+use chrono::Utc;
 use ::errors::PushError;
 
 #[cfg(test)]
@@ -58,7 +58,7 @@ pub struct MessageResponse {
 
 /// Return the current unix epoch timestamp
 fn get_timestamp() -> i64 {
-    UTC::now().timestamp()
+    Utc::now().timestamp()
 }
 
 /// Send a push notification.
