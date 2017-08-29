@@ -9,7 +9,7 @@ This server accepts push requests via HTTP and notifies the GCM push service.
 
 - POST request to `/push`
 - Request body must use `application/x-www-form-urlencoded` encoding
-- The keys `token` (GCM token), `session` (public permanent key of the
+- The keys `token` (GCM token), `session` (hash of public permanent key of the
   initiator) and `version` (webclient protocol version) must be present
 
 Example:

@@ -1,7 +1,9 @@
 use std::io::Read;
 use hyper::Client;
 use hyper::header::{ContentType, Authorization};
+use hyper::net::HttpsConnector;
 use hyper::status::StatusCode;
+use hyper_native_tls::NativeTlsClient;
 use rustc_serialize::json;
 use chrono::Utc;
 use ::errors::PushError;
@@ -69,7 +71,10 @@ pub fn send_push(api_key: &str, push_token: &str, version: u16, session: &str,
     let data = Data { wcs: session, wct: get_timestamp(), wcv: version };
     let payload = Payload { to: push_token, priority: priority, time_to_live: ttl, data: data };
 
-    let client = Client::new();
+    let ssl = NativeTlsClient::new().unwrap();
+    let connector = HttpsConnector::new(ssl);
+    let client = Client::with_connector(connector);
+
     let payload_string = json::encode(&payload).expect("Could not encode JSON payload");
     debug!("Payload: {}", payload_string);
     let url = GCM_ENDPOINT.to_string() + GCM_PATH;
