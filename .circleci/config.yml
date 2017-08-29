@@ -1,0 +1,31 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: rust:1.19
+    steps:
+      - checkout
+      # Load cargo target from cache if possible.
+      # Multiple caches are used to increase the chance of a cache hit.
+      - restore_cache:
+          keys:
+            - v4-cargo-cache-{{ checksum "Cargo.lock" }}
+            - v4-cargo-cache-{{ .Branch }}
+            - v4-cargo-cache
+      - run: cargo build && cargo test
+      - run: cargo install --force cargo-audit && cargo audit
+      - save_cache:
+          key: v4-cargo-cache-{{ checksum "Cargo.lock" }}
+          paths:
+            - target
+            - /usr/local/cargo
+      - save_cache:
+          key: v4-cargo-cache-{{ .Branch }}
+          paths:
+            - target
+            - /usr/local/cargo
+      - save_cache:
+          key: v4-cargo-cache
+          paths:
+            - target
+            - /usr/local/cargo
