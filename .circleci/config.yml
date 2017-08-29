@@ -6,3 +6,4 @@ jobs:
     steps:
       - checkout
       - run: cargo build && cargo test
+      - run: cargo install --force cargo-audit && cargo audit
