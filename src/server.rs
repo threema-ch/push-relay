@@ -20,7 +20,7 @@ pub fn serve<S, T>(api_key: S, listen_on: T) -> HttpResult<Listening>
 
     // Add middleware
     let mut chain = Chain::new(router);
-    chain.link_around(CorsMiddleware::with_allow_any(false));
+    chain.link_around(CorsMiddleware::with_allow_any());
 
     // Start server
     Iron::new(chain).http(listen_on)

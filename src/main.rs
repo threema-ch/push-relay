@@ -32,7 +32,7 @@ const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 const DESCRIPTION: &'static str = "This server accepts push requests via HTTP and notifies the GCM push service.";
 
 fn main() {
-    env_logger::init().expect("Could not initialize env_logger");
+    env_logger::init();
 
     let matches = App::new(NAME)
         .version(VERSION)
