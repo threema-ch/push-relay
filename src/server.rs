@@ -148,7 +148,7 @@ impl Service for PushHandler {
                         &push_token,
                         version,
                         &session_public_key,
-                        Priority::high,
+                        Priority::High,
                         90,
                     )
                     .map(|resp| {

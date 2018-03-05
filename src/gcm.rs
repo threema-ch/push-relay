@@ -5,7 +5,7 @@ use futures::future::{self, Future};
 use hyper::{Client, StatusCode, Request, Method, Uri, Chunk};
 use hyper::header::{ContentType, ContentLength, Authorization};
 use hyper_tls::HttpsConnector;
-use rustc_serialize::json;
+use serde_json as json;
 use tokio_core::reactor::Handle;
 use chrono::Utc;
 
@@ -22,7 +22,7 @@ static GCM_ENDPOINT: &'static str = "https://android.googleapis.com";
 static GCM_ENDPOINT: &'static str = SERVER_URL;
 static GCM_PATH: &'static str = "/gcm/send";
 
-#[derive(Debug, RustcEncodable)]
+#[derive(Debug, Serialize)]
 struct Data<'a> {
     /// Session id (public key of the initiator)
     wcs: &'a str,
@@ -32,14 +32,15 @@ struct Data<'a> {
     wcv: u16,
 }
 
-#[derive(Debug, RustcEncodable)]
-#[allow(non_camel_case_types, dead_code)]
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "lowercase")]
+#[allow(dead_code)]
 pub enum Priority {
-    high,
-    normal,
+    High,
+    Normal,
 }
 
-#[derive(Debug, RustcEncodable)]
+#[derive(Debug, Serialize)]
 struct Payload<'a> {
     to: &'a str,
     priority: Priority,
@@ -47,14 +48,14 @@ struct Payload<'a> {
     data: Data<'a>,
 }
 
-#[derive(Debug, RustcDecodable)]
+#[derive(Debug, Deserialize)]
 pub struct MessageResult {
     pub message_id: String,
     pub registration_id: Option<String>,
     pub error: Option<String>,
 }
 
-#[derive(Debug, RustcDecodable)]
+#[derive(Debug, Deserialize)]
 pub struct MessageResponse {
     pub multicast_id: i64,
     pub success: i64,
@@ -95,7 +96,7 @@ pub fn send_push(
         .build(&handle);
 
     // Encode payload
-    let payload_string = json::encode(&payload).expect("Could not encode JSON payload");
+    let payload_string = json::to_string(&payload).expect("Could not encode JSON payload");
     debug!("Payload: {}", payload_string);
 
     // Build response future
@@ -140,7 +141,7 @@ pub fn send_push(
             .map_err(|_| PushError::Other("Could not decode response JSON: Invalid UTF-8".into()))?;
 
         // Parse JSON
-        let data = json::decode::<MessageResponse>(json_body)
+        let data = json::from_str::<MessageResponse>(json_body)
             .map_err(|e| PushError::Other(
                 format!("Could not decode response JSON: `{}` (Reason: {})", json_body, e)
             ))?;
@@ -154,12 +155,11 @@ pub fn send_push(
 
 #[cfg(test)]
 mod test {
-    use rustc_serialize::json;
     use super::*;
 
     #[test]
     fn test_priority_serialization() {
-        assert_eq!(json::encode(&Priority::high).unwrap(), "\"high\"");
-        assert_eq!(json::encode(&Priority::normal).unwrap(), "\"normal\"");
+        assert_eq!(json::to_string(&Priority::High).unwrap(), "\"high\"");
+        assert_eq!(json::to_string(&Priority::Normal).unwrap(), "\"normal\"");
     }
 }

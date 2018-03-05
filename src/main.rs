@@ -13,7 +13,9 @@ extern crate ini;
 #[macro_use] extern crate log;
 extern crate mime;
 #[macro_use] extern crate quick_error;
-extern crate rustc_serialize;
+extern crate serde;
+#[macro_use] extern crate serde_derive;
+extern crate serde_json;
 extern crate tokio_core;
 extern crate url;
 
