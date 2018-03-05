@@ -10,7 +10,7 @@ chrono = "0.4"
 clap = "2"
 env_logger = "0.5"
 futures = "0.1"
-hyper = "0.11"
+hyper = { git = "https://github.com/hyperium/hyper", branch = "h2", features = ["http2"] }
 hyper-tls = "0.1.2"
 log = "0.4"
 mime = "0.3"
