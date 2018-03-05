@@ -8,7 +8,7 @@ use hyper::server::{Http, Request, Response, Service};
 use tokio_core::reactor::{Core, Handle};
 use url::form_urlencoded;
 
-use ::gcm::{send_push, Priority};
+use ::gcm::{send_push, Priority, PushToken};
 use ::utils::BoxedFuture;
 
 
@@ -128,8 +128,26 @@ impl Service for PushHandler {
                         }
                     }
 
+                    /// Iterate over parameters and find first matching key.
+                    /// If the key is not found, return a default.
+                    macro_rules! find_or_default {
+                        ($name:expr, $default:expr) => {
+                            match parsed.iter().find(|&&(ref k, _)| k == $name) {
+                                Some(&(_, ref v)) => v,
+                                None => $default,
+                            }
+                        }
+                    }
+
                     // Get parameters
-                    let push_token = find_or_bad_request!("token");
+                    let push_token = match find_or_default!("type", "gcm") {
+                        "gcm" => PushToken::Gcm(find_or_bad_request!("token").to_string()),
+                        "apns" => PushToken::Gcm(find_or_bad_request!("token").to_string()),
+                        other => {
+                            warn!("Got push request with invalid token type: {}", other);
+                            return bad_request!("Invalid or missing parameters");
+                        }
+                    };
                     let session_public_key = find_or_bad_request!("session");
                     let version_string = find_or_bad_request!("version");
                     let version: u16 = match version_string.trim().parse::<u16>() {
@@ -265,6 +283,22 @@ mod tests {
         assert_eq!(&body, "Invalid or missing parameters");
     }
 
+    /// A request wit missing parameters should result in a HTTP 400 response.
+    #[test]
+    fn test_bad_token_type() {
+        let mut core = Core::new().unwrap();
+        let handler = PushHandler { api_key: "aassddff".into(), handle: core.handle() };
+
+        let mut req = Request::new(Method::Post, Uri::from_str("/push").unwrap());
+        req.headers_mut().set(ContentType::form_url_encoded());
+        req.set_body("type=abc&token=aassddff&session=deadbeef&version=1");
+        let resp = core.run(handler.call(req)).unwrap();
+
+        assert_eq!(resp.status(), StatusCode::BadRequest);
+        let body = get_body(&mut core, resp.body());
+        assert_eq!(&body, "Invalid or missing parameters");
+    }
+
     #[test]
     fn test_ok() {
         let _m = mock("POST", "/gcm/send")
@@ -283,7 +317,7 @@ mod tests {
 
         let mut req = Request::new(Method::Post, Uri::from_str("/push").unwrap());
         req.headers_mut().set(ContentType::form_url_encoded());
-        req.set_body("token=aassddff&session=deadbeef&version=1");
+        req.set_body("type=gcm&token=aassddff&session=deadbeef&version=1");
         let resp = core.run(handler.call(req)).unwrap();
 
         assert_eq!(resp.status(), StatusCode::NoContent);

@@ -22,6 +22,12 @@ static GCM_ENDPOINT: &'static str = "https://android.googleapis.com";
 static GCM_ENDPOINT: &'static str = SERVER_URL;
 static GCM_PATH: &'static str = "/gcm/send";
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum PushToken {
+    Gcm(String),
+    Apns(String),
+}
+
 #[derive(Debug, Serialize)]
 struct Data<'a> {
     /// Session id (public key of the initiator)
@@ -75,14 +81,27 @@ fn get_timestamp() -> i64 {
 pub fn send_push(
     handle: Handle,
     api_key: String,
-    push_token: &str,
+    push_token: &PushToken,
     version: u16,
     session: &str,
     priority: Priority,
     ttl: u32,
 ) -> BoxedFuture<MessageResponse, PushError> {
     let data = Data { wcs: session, wct: get_timestamp(), wcv: version };
-    let payload = Payload { to: push_token, priority: priority, time_to_live: ttl, data: data };
+
+    let payload = match push_token {
+        &PushToken::Gcm(ref token) => Payload {
+            to: &token,
+            priority,
+            time_to_live: ttl,
+            data,
+        },
+        &PushToken::Apns(ref _token) => {
+            return boxed!(future::err(
+                PushError::Other(format!("APNS not yet implemented"))
+            ))
+        },
+    };
 
     // Create async HTTP client instance
     let https_connector = match HttpsConnector::new(4, &handle) {
