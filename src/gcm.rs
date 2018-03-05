@@ -3,7 +3,7 @@ use std::str::{FromStr, from_utf8};
 use futures::Stream;
 use futures::future::{self, Future};
 use hyper::{Client, StatusCode, Request, Method, Uri, Chunk};
-use hyper::header::{ContentType, Authorization};
+use hyper::header::{ContentType, ContentLength, Authorization};
 use hyper_tls::HttpsConnector;
 use rustc_serialize::json;
 use tokio_core::reactor::Handle;
@@ -104,6 +104,8 @@ pub fn send_push(
         let mut req = Request::new(Method::Post, uri);
         req.headers_mut().set(Authorization(format!("key={}", api_key)));
         req.headers_mut().set(ContentType::json());
+        req.headers_mut().set(ContentLength(payload_string.len() as u64));
+        req.set_body(payload_string);
         req
     }).map_err(|e| PushError::Other(format!("GCM request failed: {}", e)));
 
