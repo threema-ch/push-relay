@@ -6,24 +6,27 @@
 extern crate chrono;
 extern crate clap;
 extern crate env_logger;
+extern crate futures;
 extern crate hyper;
-extern crate hyper_native_tls;
+extern crate hyper_tls;
 extern crate ini;
-extern crate iron;
-extern crate iron_cors;
-extern crate router;
-extern crate rustc_serialize;
-extern crate urlencoded;
 #[macro_use] extern crate log;
+extern crate mime;
 #[macro_use] extern crate quick_error;
+extern crate rustc_serialize;
+extern crate tokio_core;
+extern crate url;
 
 #[cfg(test)] extern crate mockito;
 
-mod server;
-mod gcm;
+#[macro_use] mod utils;
 mod errors;
+mod gcm;
+mod server;
 
+use std::net::SocketAddr;
 use std::process;
+
 use clap::{App, Arg};
 use ini::Ini;
 
@@ -41,7 +44,7 @@ fn main() {
              .short("l")
              .long("listen")
              .value_name("host:port")
-             .help("The host/port to listen on. Default: localhost:3000."))
+             .help("The ip/port to listen on. Default: 127.0.0.1:3000."))
         .arg(Arg::with_name("config")
              .short("c")
              .long("config")
@@ -49,7 +52,12 @@ fn main() {
              .help("Path to a configfile. Default: config.ini."))
         .get_matches();
 
-    let listen = matches.value_of("listen").unwrap_or("localhost:3000");
+    let listen = matches.value_of("listen").unwrap_or("127.0.0.1:3000");
+    let addr: SocketAddr = listen.parse().unwrap_or_else(|e| {
+        error!("Invalid listen address: {} ({})", listen, e);
+        process::exit(1);
+    });
+
     let configfile = matches.value_of("config").unwrap_or("config.ini");
 
     // Load config file
@@ -68,8 +76,8 @@ fn main() {
         process::exit(2);
     });
 
-    info!("Starting Push Relay Server {} on {}", VERSION, &listen);
-    server::serve(api_key, listen).unwrap_or_else(|e| {
+    info!("Starting Push Relay Server {} on {}", VERSION, &addr);
+    server::serve(api_key, addr).unwrap_or_else(|e| {
         error!("Could not start relay server: {}", e);
         process::exit(3);
     });
