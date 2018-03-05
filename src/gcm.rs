@@ -4,6 +4,7 @@ use futures::Stream;
 use futures::future::{self, Future};
 use hyper::{Client, StatusCode, Request, Method, Uri, Chunk};
 use hyper::header::{ContentType, Authorization};
+use hyper_tls::HttpsConnector;
 use rustc_serialize::json;
 use tokio_core::reactor::Handle;
 use chrono::Utc;
@@ -83,7 +84,15 @@ pub fn send_push(
     let payload = Payload { to: push_token, priority: priority, time_to_live: ttl, data: data };
 
     // Create async HTTP client instance
-    let client = Client::new(&handle);
+    let https_connector = match HttpsConnector::new(4, &handle) {
+        Ok(conn) => conn,
+        Err(e) => return boxed!(future::err(
+            PushError::Other(format!("Could not create HttpsConnector: {}", e))
+        ))
+    };
+    let client = Client::configure()
+        .connector(https_connector)
+        .build(&handle);
 
     // Encode payload
     let payload_string = json::encode(&payload).expect("Could not encode JSON payload");

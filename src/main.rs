@@ -8,6 +8,7 @@ extern crate clap;
 extern crate env_logger;
 extern crate futures;
 extern crate hyper;
+extern crate hyper_tls;
 extern crate ini;
 #[macro_use] extern crate log;
 extern crate mime;
