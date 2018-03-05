@@ -8,7 +8,8 @@ use hyper::server::{Http, Request, Response, Service};
 use tokio_core::reactor::{Core, Handle};
 use url::form_urlencoded;
 
-use ::gcm::{send_push, Priority, PushToken};
+use ::push::PushToken;
+use ::push::gcm;
 use ::utils::BoxedFuture;
 
 
@@ -160,13 +161,13 @@ impl Service for PushHandler {
 
                     // Send push notification
                     info!("Sending push message to GCM for session {} [v{}]", session_public_key, version);
-                    let push_future = send_push(
+                    let push_future = gcm::send_push(
                         handle_clone,
                         api_key_clone,
                         &push_token,
                         version,
                         &session_public_key,
-                        Priority::High,
+                        gcm::Priority::High,
                         90,
                     )
                     .map(|resp| {

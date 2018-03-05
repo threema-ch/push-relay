@@ -10,6 +10,7 @@ use tokio_core::reactor::Handle;
 use chrono::Utc;
 
 use ::errors::PushError;
+use ::push::{PushToken, Data};
 use ::utils::BoxedFuture;
 
 #[cfg(test)]
@@ -22,22 +23,8 @@ static GCM_ENDPOINT: &'static str = "https://android.googleapis.com";
 static GCM_ENDPOINT: &'static str = SERVER_URL;
 static GCM_PATH: &'static str = "/gcm/send";
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum PushToken {
-    Gcm(String),
-    Apns(String),
-}
 
-#[derive(Debug, Serialize)]
-struct Data<'a> {
-    /// Session id (public key of the initiator)
-    wcs: &'a str,
-    /// Timestamp
-    wct: i64,
-    /// Version
-    wcv: u16,
-}
-
+/// GCM push priority.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
 #[allow(dead_code)]
@@ -46,6 +33,7 @@ pub enum Priority {
     Normal,
 }
 
+/// GCM payload.
 #[derive(Debug, Serialize)]
 struct Payload<'a> {
     to: &'a str,
@@ -54,13 +42,7 @@ struct Payload<'a> {
     data: Data<'a>,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct MessageResult {
-    pub message_id: String,
-    pub registration_id: Option<String>,
-    pub error: Option<String>,
-}
-
+/// GCM push response.
 #[derive(Debug, Deserialize)]
 pub struct MessageResponse {
     pub multicast_id: i64,
@@ -68,6 +50,14 @@ pub struct MessageResponse {
     pub failure: i64,
     pub canonical_ids: i64,
     pub results: Option<Vec<MessageResult>>,
+}
+
+/// GCM push result, sent inside the push response.
+#[derive(Debug, Deserialize)]
+pub struct MessageResult {
+    pub message_id: String,
+    pub registration_id: Option<String>,
+    pub error: Option<String>,
 }
 
 /// Return the current unix epoch timestamp
@@ -78,6 +68,8 @@ fn get_timestamp() -> i64 {
 /// Send a push notification.
 ///
 /// TODO: Once the next release is out, remove Option around version.
+///
+/// TODO: It should not be possible to send an APNS `Token` to this endpoint.
 pub fn send_push(
     handle: Handle,
     api_key: String,

@@ -23,7 +23,7 @@ extern crate url;
 
 #[macro_use] mod utils;
 mod errors;
-mod gcm;
+mod push;
 mod server;
 
 use std::net::SocketAddr;
