@@ -10,7 +10,7 @@ use tokio_core::reactor::Handle;
 use chrono::Utc;
 
 use ::errors::PushError;
-use ::push::{PushToken, Data};
+use ::push::{PushToken, ThreemaPayload};
 use ::utils::BoxedFuture;
 
 #[cfg(test)]
@@ -34,12 +34,14 @@ pub enum Priority {
 }
 
 /// GCM payload.
+///
+/// See https://developers.google.com/cloud-messaging/http-server-ref
 #[derive(Debug, Serialize)]
 struct Payload<'a> {
     to: &'a str,
     priority: Priority,
     time_to_live: u32,
-    data: Data<'a>,
+    data: ThreemaPayload<'a>,
 }
 
 /// GCM push response.
@@ -79,7 +81,7 @@ pub fn send_push(
     priority: Priority,
     ttl: u32,
 ) -> BoxedFuture<MessageResponse, PushError> {
-    let data = Data { wcs: session, wct: get_timestamp(), wcv: version };
+    let data = ThreemaPayload { wcs: session, wct: get_timestamp(), wcv: version };
 
     let payload = match push_token {
         &PushToken::Gcm(ref token) => Payload {

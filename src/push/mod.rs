@@ -10,7 +10,7 @@ pub enum PushToken {
 
 /// Payload sent to end device inside the push notification.
 #[derive(Debug, Serialize)]
-struct Data<'a> {
+struct ThreemaPayload<'a> {
     /// Session id (public key of the initiator)
     wcs: &'a str,
     /// Timestamp
