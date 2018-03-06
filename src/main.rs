@@ -3,6 +3,7 @@
 //! This server accepts push requests via HTTPS and notifies the GCM push
 //! service.
 
+extern crate apns2;
 extern crate chrono;
 extern crate clap;
 extern crate env_logger;

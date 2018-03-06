@@ -6,6 +6,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/threema-ch/push-relay"
 
 [dependencies]
+apns2 = { git = "https://github.com/pimeys/apns2" }
 chrono = "0.4"
 clap = "2"
 env_logger = "0.5"
