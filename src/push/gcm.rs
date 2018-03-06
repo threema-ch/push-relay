@@ -10,7 +10,7 @@ use tokio_core::reactor::Handle;
 use chrono::Utc;
 
 use ::errors::PushError;
-use ::push::{PushToken, ThreemaPayload};
+use ::push::{GcmToken, ThreemaPayload};
 use ::utils::BoxedFuture;
 
 #[cfg(test)]
@@ -67,15 +67,13 @@ fn get_timestamp() -> i64 {
     Utc::now().timestamp()
 }
 
-/// Send a push notification.
+/// Send a GCM push notification.
 ///
 /// TODO: Once the next release is out, remove Option around version.
-///
-/// TODO: It should not be possible to send an APNS `Token` to this endpoint.
 pub fn send_push(
     handle: Handle,
     api_key: String,
-    push_token: &PushToken,
+    push_token: &GcmToken,
     version: u16,
     session: &str,
     priority: Priority,
@@ -83,18 +81,11 @@ pub fn send_push(
 ) -> BoxedFuture<MessageResponse, PushError> {
     let data = ThreemaPayload { wcs: session, wct: get_timestamp(), wcv: version };
 
-    let payload = match push_token {
-        &PushToken::Gcm(ref token) => Payload {
-            to: &token,
-            priority,
-            time_to_live: ttl,
-            data,
-        },
-        &PushToken::Apns(ref _token) => {
-            return boxed!(future::err(
-                PushError::Other(format!("APNS not yet implemented"))
-            ))
-        },
+    let payload = Payload {
+        to: &push_token.0,
+        priority,
+        time_to_live: ttl,
+        data,
     };
 
     // Create async HTTP client instance

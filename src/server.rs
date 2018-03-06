@@ -8,7 +8,7 @@ use hyper::server::{Http, Request, Response, Service};
 use tokio_core::reactor::{Core, Handle};
 use url::form_urlencoded;
 
-use ::push::PushToken;
+use ::push::{PushToken, GcmToken, ApnsToken};
 use ::push::gcm;
 use ::utils::BoxedFuture;
 
@@ -142,8 +142,8 @@ impl Service for PushHandler {
 
                     // Get parameters
                     let push_token = match find_or_default!("type", "gcm") {
-                        "gcm" => PushToken::Gcm(find_or_bad_request!("token").to_string()),
-                        "apns" => PushToken::Gcm(find_or_bad_request!("token").to_string()),
+                        "gcm" => PushToken::Gcm(GcmToken(find_or_bad_request!("token").to_string())),
+                        "apns" => PushToken::Apns(ApnsToken(find_or_bad_request!("token").to_string())),
                         other => {
                             warn!("Got push request with invalid token type: {}", other);
                             return bad_request!("Invalid or missing parameters");
@@ -161,34 +161,38 @@ impl Service for PushHandler {
 
                     // Send push notification
                     info!("Sending push message to GCM for session {} [v{}]", session_public_key, version);
-                    let push_future = gcm::send_push(
-                        handle_clone,
-                        api_key_clone,
-                        &push_token,
-                        version,
-                        &session_public_key,
-                        gcm::Priority::High,
-                        90,
-                    )
-                    .map(|resp| {
-                        debug!("Success!");
-                        debug!("Details: {:?}", resp);
-                        Response::new()
-                            .with_status(StatusCode::NoContent)
-                            .with_header(ContentLength(0))
-                            .with_header(ContentType::plaintext())
-                    })
-                    .or_else(|e| {
-                        warn!("Error: {}", e);
-                        let body = "Push not successful";
-                        future::ok(Response::new()
-                            .with_status(StatusCode::InternalServerError)
-                            .with_header(ContentType::plaintext())
-                            .with_header(ContentLength(body.len() as u64))
-                            .with_body(body))
-                    });
+                    let push_future = match push_token {
+                        PushToken::Gcm(ref token) => gcm::send_push(
+                            handle_clone,
+                            api_key_clone,
+                            token,
+                            version,
+                            &session_public_key,
+                            gcm::Priority::High,
+                            90,
+                        ),
+                        PushToken::Apns(ref _token) => unimplemented!(),
+                    };
 
-                    boxed!(push_future)
+                    boxed!(push_future
+                        .map(|resp| {
+                            debug!("Success!");
+                            debug!("Details: {:?}", resp);
+                            Response::new()
+                                .with_status(StatusCode::NoContent)
+                                .with_header(ContentLength(0))
+                                .with_header(ContentType::plaintext())
+                        })
+                        .or_else(|e| {
+                            warn!("Error: {}", e);
+                            let body = "Push not successful";
+                            future::ok(Response::new()
+                                .with_status(StatusCode::InternalServerError)
+                                .with_header(ContentType::plaintext())
+                                .with_header(ContentLength(body.len() as u64))
+                                .with_body(body))
+                        })
+                    )
                 })
         ) as BoxedFuture<_, _>
     }
