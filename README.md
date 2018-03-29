@@ -48,6 +48,9 @@ that looks like this:
     [gcm]
     api_key = "your-api-key"
 
+    [apns]
+    keyfile = "your-keyfile.p8"
+
 Then simply run
 
     export RUST_LOG=push_relay=debug,hyper=info

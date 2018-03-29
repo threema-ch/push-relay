@@ -27,6 +27,8 @@ mod errors;
 mod push;
 mod server;
 
+use std::fs::File;
+use std::io::Read;
 use std::net::SocketAddr;
 use std::process;
 
@@ -74,13 +76,34 @@ fn main() {
         error!("Invalid config file: No [gcm] section in {}", configfile);
         process::exit(2);
     });
-    let api_key = config_gcm.get("api_key").unwrap_or_else(|| {
+    let gcm_api_key = config_gcm.get("api_key").unwrap_or_else(|| {
         error!("Invalid config file: No 'api_key' key in [gcm] section in {}", configfile);
         process::exit(2);
     });
 
+    // Determine APNS API keyfile
+    let config_apns = config.section(Some("apns".to_owned())).unwrap_or_else(|| {
+        error!("Invalid config file: No [apns] section in {}", configfile);
+        process::exit(2);
+    });
+    let apns_keyfile_path = config_apns.get("keyfile").unwrap_or_else(|| {
+        error!("Invalid config file: No 'keyfile' key in [apns] section in {}", configfile);
+        process::exit(2);
+    });
+
+    // Open APNS keyfile
+    let mut apns_keyfile = File::open(apns_keyfile_path).unwrap_or_else(|e| {
+        error!("Invalid 'keyfile' path: Could not open '{}': {}", apns_keyfile_path, e);
+        process::exit(3);
+    });
+    let mut apns_api_key_string = String::new();
+    apns_keyfile.read_to_string(&mut apns_api_key_string).unwrap_or_else(|e| {
+        error!("Invalid 'keyfile' path: Could not read '{}': {}", apns_keyfile_path, e);
+        process::exit(3);
+    });
+
     info!("Starting Push Relay Server {} on {}", VERSION, &addr);
-    server::serve(api_key, addr).unwrap_or_else(|e| {
+    server::serve(gcm_api_key, apns_api_key_string, addr).unwrap_or_else(|e| {
         error!("Could not start relay server: {}", e);
         process::exit(3);
     });
