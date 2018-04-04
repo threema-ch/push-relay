@@ -4,20 +4,28 @@
 [![License][license-badge]][license]
 
 This server accepts push requests via HTTP and notifies the Google GCM / Apple
-APNS push services.
+APNs push services.
 
 ## Request Format
 
 - POST request to `/push`
 - Request body must use `application/x-www-form-urlencoded` encoding
-- The keys `type` (either `gcm` or `apns`), `token` (the token), `session`
-  (hash of public permanent key of the initiator) and `version` (webclient
-  protocol version) must be present
 
-Example:
+Request keys:
+
+- `type`: Either `gcm` or `apns`
+- `token`: The device push token
+- `session`: SHA256 hash of public permanent key of the initiator
+- `version`: Threema Web protocol version
+- `bundleid` (APNs only): The bundle id to use
+- `endpoint` (APNs only): Either `p` (production) or `s` (sandbox)
+
+Examples:
 
     curl -X POST -H "Origin: https://localhost" localhost:3000/push \
         -d "type=gcm&token=asdf&session=123deadbeef&version=3"
+    curl -X POST -H "Origin: https://localhost" localhost:3000/push \
+        -d "type=apns&token=asdf&session=123deadbeef&version=3&bundleid=com.example.app&endpoint=s"
 
 Possible response codes:
 
@@ -25,20 +33,25 @@ Possible response codes:
 - `HTTP 400 (Bad Request)`: Invalid or missing POST parameters
 - `HTTP 500 (Internal Server Error)`: Processing of push request failed
 
-## GCM Message Format
+## Push Payload
 
-The GCM message contains the following data keys:
+The payload format looks like this:
 
 - `wcs`: Webclient session (sha256 hash of the public permanent key of the
   initiator), `string`
-- `wct`: Unix epoch timestamp of the request, `i64`
+- `wct`: Unix epoch timestamp of the request in seconds, `i64`
 - `wcv`: Protocol version, `u16`
+
+### GCM
+
+The GCM message contains the payload data as specified above.
 
 The TTL of the message is currently hardcoded to 90 seconds.
 
-## APNS Message Format
+### APNs
 
-To be specified
+The APNs message contains a key "3mw" containing the payload data as specified
+above.
 
 ## Running
 
@@ -50,6 +63,8 @@ that looks like this:
 
     [apns]
     keyfile = "your-keyfile.p8"
+    key_id = "AB123456XY"
+    team_id = "CD987654YZ"
 
 Then simply run
 
@@ -63,6 +78,12 @@ Then simply run
 - Always create a build in release mode: `cargo build --release`
 - Use a reverse proxy with proper TLS termination (e.g. Nginx)
 - Set `RUST_LOG=push_relay=info,hyper=info` env variable
+
+## Testing
+
+To run tests:
+
+    cargo test
 
 ## License
 

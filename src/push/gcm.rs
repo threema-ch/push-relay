@@ -1,3 +1,5 @@
+//! Code related to the sending of GCM push notifications.
+
 use std::str::{FromStr, from_utf8};
 
 use futures::Stream;
@@ -7,7 +9,6 @@ use hyper::header::{ContentType, ContentLength, Authorization};
 use hyper_tls::HttpsConnector;
 use serde_json as json;
 use tokio_core::reactor::Handle;
-use chrono::Utc;
 
 use ::errors::PushError;
 use ::push::{GcmToken, ThreemaPayload};
@@ -62,14 +63,7 @@ pub struct MessageResult {
     pub error: Option<String>,
 }
 
-/// Return the current unix epoch timestamp
-fn get_timestamp() -> i64 {
-    Utc::now().timestamp()
-}
-
 /// Send a GCM push notification.
-///
-/// TODO: Once the next release is out, remove Option around version.
 pub fn send_push(
     handle: Handle,
     api_key: String,
@@ -78,15 +72,15 @@ pub fn send_push(
     session: &str,
     priority: Priority,
     ttl: u32,
-) -> BoxedFuture<MessageResponse, PushError> {
-    let data = ThreemaPayload { wcs: session, wct: get_timestamp(), wcv: version };
-
+) -> BoxedFuture<(), PushError> {
+    let data = ThreemaPayload::new(session, version);
     let payload = Payload {
         to: &push_token.0,
         priority,
         time_to_live: ttl,
         data,
     };
+    trace!("Sending payload: {:#?}", payload);
 
     // Create async HTTP client instance
     let https_connector = match HttpsConnector::new(4, &handle) {
@@ -112,7 +106,7 @@ pub fn send_push(
         req.headers_mut().set(ContentLength(payload_string.len() as u64));
         req.set_body(payload_string);
         req
-    }).map_err(|e| PushError::Other(format!("GCM request failed: {}", e)));
+    }).map_err(|e| PushError::SendError(e));
 
     let body_read_error = |e| PushError::Other(format!("Could not read GCM response body: {}", e));
 
@@ -151,7 +145,10 @@ pub fn send_push(
             ))?;
 
         match data.success {
-            1 => Ok(data),
+            1 => {
+                trace!("Success details: {:?}", data);
+                Ok(())
+            },
             _ => Err(PushError::ProcessingError("Success count in response is not 1".into())),
         }
     }))

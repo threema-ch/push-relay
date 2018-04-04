@@ -12,7 +12,7 @@ clap = "2"
 env_logger = "0.5"
 futures = "0.1"
 hyper = { git = "https://github.com/hyperium/hyper", branch = "h2", features = ["http2"] }
-hyper-tls = "0.1.2"
+hyper-tls = "0.1"
 log = "0.4"
 mime = "0.3"
 quick-error = "1.1"
@@ -25,6 +25,9 @@ url = "1.7.0"
 
 [dev-dependencies]
 mockito = "0.9"
+argparse = "*"
+pretty_env_logger = "*"
+openssl = "*"
 
 [patch.crates-io]
 hyper = { version = "0.11.18", git = "https://github.com/hyperium/hyper", branch = "h2", features = ["http2"] }

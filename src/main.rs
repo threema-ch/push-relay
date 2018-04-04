@@ -27,8 +27,8 @@ mod errors;
 mod push;
 mod server;
 
-use std::fs::File;
 use std::io::Read;
+use std::fs::File;
 use std::net::SocketAddr;
 use std::process;
 
@@ -81,7 +81,7 @@ fn main() {
         process::exit(2);
     });
 
-    // Determine APNS API keyfile
+    // Determine APNs config
     let config_apns = config.section(Some("apns".to_owned())).unwrap_or_else(|| {
         error!("Invalid config file: No [apns] section in {}", configfile);
         process::exit(2);
@@ -90,20 +90,28 @@ fn main() {
         error!("Invalid config file: No 'keyfile' key in [apns] section in {}", configfile);
         process::exit(2);
     });
+    let apns_team_id = config_apns.get("team_id").unwrap_or_else(|| {
+        error!("Invalid config file: No 'team_id' key in [apns] section in {}", configfile);
+        process::exit(2);
+    });
+    let apns_key_id = config_apns.get("key_id").unwrap_or_else(|| {
+        error!("Invalid config file: No 'key_id' key in [apns] section in {}", configfile);
+        process::exit(2);
+    });
 
-    // Open APNS keyfile
+    // Open APNs keyfile
     let mut apns_keyfile = File::open(apns_keyfile_path).unwrap_or_else(|e| {
         error!("Invalid 'keyfile' path: Could not open '{}': {}", apns_keyfile_path, e);
         process::exit(3);
     });
-    let mut apns_api_key_string = String::new();
-    apns_keyfile.read_to_string(&mut apns_api_key_string).unwrap_or_else(|e| {
-        error!("Invalid 'keyfile' path: Could not read '{}': {}", apns_keyfile_path, e);
+    let mut apns_api_key = Vec::new();
+    apns_keyfile.read_to_end(&mut apns_api_key).unwrap_or_else(|e| {
+        error!("Invalid 'keyfile': Could not read '{}': {}", apns_keyfile_path, e);
         process::exit(3);
     });
 
     info!("Starting Push Relay Server {} on {}", VERSION, &addr);
-    server::serve(gcm_api_key, apns_api_key_string, addr).unwrap_or_else(|e| {
+    server::serve(gcm_api_key, apns_api_key, apns_team_id, apns_key_id, addr).unwrap_or_else(|e| {
         error!("Could not start relay server: {}", e);
         process::exit(3);
     });
