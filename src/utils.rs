@@ -1,4 +1,4 @@
-use futures::future::{Future};
+use futures::future::Future;
 
 
 /// A type alias for a boxed future.
@@ -8,5 +8,5 @@ pub type BoxedFuture<T, E> = Box<Future<Item = T, Error = E>>;
 macro_rules! boxed {
     ($future:expr) => {{
         Box::new($future) as BoxedFuture<_, _>
-    }}
+    }};
 }

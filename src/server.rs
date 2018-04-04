@@ -2,23 +2,23 @@ use std::convert::Into;
 use std::net::SocketAddr;
 use std::rc::Rc;
 
-use apns2::client::{Endpoint, Client as ApnsClient};
+use apns2::client::{Client as ApnsClient, Endpoint};
 use futures::Stream;
 use futures::future::{self, Future};
-use hyper::{Error as HyperError, Method, StatusCode};
 use hyper::header::{ContentLength, ContentType};
 use hyper::server::{Http, Request, Response, Service};
+use hyper::{Error as HyperError, Method, StatusCode};
 use tokio_core::reactor::{Core, Handle};
 use url::form_urlencoded;
 
-use ::errors::PushError;
-use ::push::{PushToken, GcmToken, ApnsToken};
-use ::push::{gcm, apns};
-use ::utils::BoxedFuture;
+use errors::PushError;
+use push::{ApnsToken, GcmToken, PushToken};
+use push::{apns, gcm};
+use utils::BoxedFuture;
 
 
 /// Start the server and run infinitely.
-pub fn serve (
+pub fn serve(
     gcm_api_key: &str,
     apns_api_key: Vec<u8>,
     apns_team_id: &str,
@@ -60,9 +60,7 @@ pub fn serve (
     // Start server
     let handle = core.handle();
     let server = serve.for_each(move |conn| {
-        handle.spawn(
-            conn.map(|_| ()).map_err(|e| error!("Serve error: {}", e))
-        );
+        handle.spawn(conn.map(|_| ()).map_err(|e| error!("Serve error: {}", e)));
         Ok(())
     });
     core.run(server).map_err(Into::into)
@@ -77,7 +75,6 @@ pub struct PushHandler {
 }
 
 impl Service for PushHandler {
-
     // Boilerplate for hooking up hyper's server types
     type Request = Request;
     type Response = Response;
@@ -93,16 +90,14 @@ impl Service for PushHandler {
         // Verify path
         if uri.path() != "/push" {
             return Box::new(future::ok(
-                Response::new()
-                    .with_status(StatusCode::NotFound)
+                Response::new().with_status(StatusCode::NotFound),
             ));
         }
 
         // Verify method
         if method != Method::Post {
             return Box::new(future::ok(
-                Response::new()
-                    .with_status(StatusCode::MethodNotAllowed)
+                Response::new().with_status(StatusCode::MethodNotAllowed),
             ));
         }
 
@@ -116,139 +111,141 @@ impl Service for PushHandler {
                         .with_header(ContentLength($text.len() as u64))
                         .with_body($text)
                 ))
-            }
+            };
         }
 
         // Verify content type
         let content_type = headers.get::<ContentType>();
         match content_type {
-            Some(ct) if ct.type_() == "application"
-                     && ct.subtype() == "x-www-form-urlencoded" => { /* ok */ },
+            Some(ct) if ct.type_() == "application" && ct.subtype() == "x-www-form-urlencoded" => {
+                /* ok */
+            },
             _ => return bad_request!("Invalid content type"),
         };
-        
+
         // Parse request body
         let gcm_api_key_clone = self.gcm_api_key.clone();
         let handle_clone = self.handle.clone();
         let apns_client_prod_clone = self.apns_client_prod.clone();
         let apns_client_sbox_clone = self.apns_client_sbox.clone();
-        Box::new(
-            body
-                // Hyper supports streamed requests, so we first need to
-                // concatenate chunks until the request body is complete.
-                .concat2()
 
-                // Once the body is complete, process it
-                .and_then(move |body| {
-                    let parsed = form_urlencoded::parse(&body).collect::<Vec<_>>();
+        let response_future = body
 
-                    // Validate parameters
-                    if parsed.is_empty() {
+            // Hyper supports streamed requests, so we first need to
+            // concatenate chunks until the request body is complete.
+            .concat2()
+
+            // Once the body is complete, process it
+            .and_then(move |body| {
+                let parsed = form_urlencoded::parse(&body).collect::<Vec<_>>();
+
+                // Validate parameters
+                if parsed.is_empty() {
+                    return bad_request!("Invalid or missing parameters");
+                }
+
+                /// Iterate over parameters and find first matching key.
+                /// If the key is not found, then return a HTTP 400 response.
+                macro_rules! find_or_bad_request {
+                    ($name:expr) => {
+                        match parsed.iter().find(|&&(ref k, _)| k == $name) {
+                            Some(&(_, ref v)) => v,
+                            None => return bad_request!("Invalid or missing parameters"),
+                        }
+                    }
+                }
+
+                /// Iterate over parameters and find first matching key.
+                /// If the key is not found, return a default.
+                macro_rules! find_or_default {
+                    ($name:expr, $default:expr) => {
+                        match parsed.iter().find(|&&(ref k, _)| k == $name) {
+                            Some(&(_, ref v)) => v,
+                            None => $default,
+                        }
+                    }
+                }
+
+                // Get parameters
+                let push_token = match find_or_default!("type", "gcm") {
+                    "gcm" => PushToken::Gcm(GcmToken(find_or_bad_request!("token").to_string())),
+                    "apns" => PushToken::Apns(ApnsToken(find_or_bad_request!("token").to_string())),
+                    other => {
+                        warn!("Got push request with invalid token type: {}", other);
                         return bad_request!("Invalid or missing parameters");
                     }
+                };
+                let session_public_key = find_or_bad_request!("session");
+                let version_string = find_or_bad_request!("version");
+                let version: u16 = match version_string.trim().parse::<u16>() {
+                    Ok(parsed) => parsed,
+                    Err(e) => {
+                        warn!("Got push request with invalid version param: {:?}", e);
+                        return bad_request!("Invalid or missing parameters");
+                    },
+                };
+                let (bundle_id, endpoint) = match push_token {
+                    PushToken::Apns(_) => {
+                        let bundle_id = Some(find_or_bad_request!("bundleid").to_owned());
+                        let endpoint_str = find_or_bad_request!("endpoint");
+                        let endpoint = Some(match endpoint_str.as_ref() {
+                            "p" => Endpoint::Production,
+                            "s" => Endpoint::Sandbox,
+                            _ => return bad_request!("Invalid or missing parameters"),
+                        });
+                        (bundle_id, endpoint)
+                    },
+                    _ => (None, None),
+                };
 
-                    /// Iterate over parameters and find first matching key.
-                    /// If the key is not found, then return a HTTP 400 response.
-                    macro_rules! find_or_bad_request {
-                        ($name:expr) => {
-                            match parsed.iter().find(|&&(ref k, _)| k == $name) {
-                                Some(&(_, ref v)) => v,
-                                None => return bad_request!("Invalid or missing parameters"),
-                            }
-                        }
-                    }
-
-                    /// Iterate over parameters and find first matching key.
-                    /// If the key is not found, return a default.
-                    macro_rules! find_or_default {
-                        ($name:expr, $default:expr) => {
-                            match parsed.iter().find(|&&(ref k, _)| k == $name) {
-                                Some(&(_, ref v)) => v,
-                                None => $default,
-                            }
-                        }
-                    }
-
-                    // Get parameters
-                    let push_token = match find_or_default!("type", "gcm") {
-                        "gcm" => PushToken::Gcm(GcmToken(find_or_bad_request!("token").to_string())),
-                        "apns" => PushToken::Apns(ApnsToken(find_or_bad_request!("token").to_string())),
-                        other => {
-                            warn!("Got push request with invalid token type: {}", other);
-                            return bad_request!("Invalid or missing parameters");
-                        }
-                    };
-                    let session_public_key = find_or_bad_request!("session");
-                    let version_string = find_or_bad_request!("version");
-                    let version: u16 = match version_string.trim().parse::<u16>() {
-                        Ok(parsed) => parsed,
-                        Err(e) => {
-                            warn!("Got push request with invalid version param: {:?}", e);
-                            return bad_request!("Invalid or missing parameters");
+                // Send push notification
+                info!("Sending push message to {} for session {} [v{}]", push_token.abbrev(), session_public_key, version);
+                let push_future = match push_token {
+                    PushToken::Gcm(ref token) => gcm::send_push(
+                        handle_clone,
+                        gcm_api_key_clone,
+                        token,
+                        version,
+                        &session_public_key,
+                        gcm::Priority::High,
+                        90,
+                    ),
+                    PushToken::Apns(ref token) => apns::send_push(
+                        match endpoint.unwrap() {
+                            Endpoint::Production => &apns_client_prod_clone,
+                            Endpoint::Sandbox => &apns_client_sbox_clone,
                         },
-                    };
-                    let (bundle_id, endpoint) = match push_token {
-                        PushToken::Apns(_) => {
-                            let bundle_id = Some(find_or_bad_request!("bundleid").to_owned());
-                            let endpoint_str = find_or_bad_request!("endpoint");
-                            let endpoint = Some(match endpoint_str.as_ref() {
-                                "p" => Endpoint::Production,
-                                "s" => Endpoint::Sandbox,
-                                _ => return bad_request!("Invalid or missing parameters"),
-                            });
-                            (bundle_id, endpoint)
-                        },
-                        _ => (None, None),
-                    };
+                        token,
+                        bundle_id.expect("bundle_id is None"),
+                        version,
+                        &session_public_key,
+                    ),
+                };
 
-                    // Send push notification
-                    info!("Sending push message to {} for session {} [v{}]", push_token.abbrev(), session_public_key, version);
-                    let push_future = match push_token {
-                        PushToken::Gcm(ref token) => gcm::send_push(
-                            handle_clone,
-                            gcm_api_key_clone,
-                            token,
-                            version,
-                            &session_public_key,
-                            gcm::Priority::High,
-                            90,
-                        ),
-                        PushToken::Apns(ref token) => apns::send_push(
-                            match endpoint.unwrap() {
-                                Endpoint::Production => &apns_client_prod_clone,
-                                Endpoint::Sandbox => &apns_client_sbox_clone,
-                            },
-                            token,
-                            bundle_id.expect("bundle_id is None"),
-                            version,
-                            &session_public_key,
-                        ),
-                    };
+                boxed!(push_future
+                    .map(|_| {
+                        debug!("Success!");
+                        Response::new()
+                            .with_status(StatusCode::NoContent)
+                            .with_header(ContentLength(0))
+                            .with_header(ContentType::plaintext())
+                    })
+                    .or_else(|e| {
+                        warn!("Error: {}", e);
+                        let body = "Push not successful";
+                        future::ok(Response::new()
+                            .with_status(StatusCode::InternalServerError)
+                            .with_header(ContentType::plaintext())
+                            .with_header(ContentLength(body.len() as u64))
+                            .with_body(body))
+                    })
+                )
+            });
 
-                    boxed!(push_future
-                        .map(|_| {
-                            debug!("Success!");
-                            Response::new()
-                                .with_status(StatusCode::NoContent)
-                                .with_header(ContentLength(0))
-                                .with_header(ContentType::plaintext())
-                        })
-                        .or_else(|e| {
-                            warn!("Error: {}", e);
-                            let body = "Push not successful";
-                            future::ok(Response::new()
-                                .with_status(StatusCode::InternalServerError)
-                                .with_header(ContentType::plaintext())
-                                .with_header(ContentLength(body.len() as u64))
-                                .with_body(body))
-                        })
-                    )
-                })
-        ) as BoxedFuture<_, _>
+        Box::new(response_future) as BoxedFuture<_, _>
     }
 }
 
-//
 
 #[cfg(test)]
 mod tests {
@@ -263,7 +260,7 @@ mod tests {
     use hyper::{Body, Uri};
 
     use self::mockito::mock;
-    use self::openssl::ec::{EcKey, EcGroup};
+    use self::openssl::ec::{EcGroup, EcKey};
     use self::openssl::nid::Nid;
 
 
@@ -284,12 +281,18 @@ mod tests {
         let core = Core::new().unwrap();
         let api_key = get_apns_test_key();
         let apns_client_prod = apns::create_client(
-            core.handle(), Endpoint::Production,
-            api_key.as_slice(), "team_id", "key_id",
+            core.handle(),
+            Endpoint::Production,
+            api_key.as_slice(),
+            "team_id",
+            "key_id",
         ).unwrap();
         let apns_client_sbox = apns::create_client(
-            core.handle(), Endpoint::Sandbox,
-            api_key.as_slice(), "team_id", "key_id",
+            core.handle(),
+            Endpoint::Sandbox,
+            api_key.as_slice(),
+            "team_id",
+            "key_id",
         ).unwrap();
         let handler = PushHandler {
             gcm_api_key: "aassddff".into(),
@@ -386,7 +389,9 @@ mod tests {
 
         let mut req = Request::new(Method::Post, Uri::from_str("/push").unwrap());
         req.headers_mut().set(ContentType::form_url_encoded());
-        req.set_body("type=apns&token=1234&session=123deadbeef&version=3&bundleid=asdf&endpoint=q");
+        req.set_body(
+            "type=apns&token=1234&session=123deadbeef&version=3&bundleid=asdf&endpoint=q",
+        );
         let resp = core.run(handler.call(req)).unwrap();
 
         assert_eq!(resp.status(), StatusCode::BadRequest);
@@ -413,13 +418,15 @@ mod tests {
     fn test_ok() {
         let _m = mock("POST", "/gcm/send")
             .with_status(200)
-            .with_body(r#"{
-                "multicast_id": 1,
-                "success": 1,
-                "failure": 0,
-                "canonical_ids": 0,
-                "results": null
-            }"#)
+            .with_body(
+                r#"{
+                    "multicast_id": 1,
+                    "success": 1,
+                    "failure": 0,
+                    "canonical_ids": 0,
+                    "results": null
+                }"#,
+            )
             .create();
 
         let (mut core, handler) = get_handler();
@@ -430,6 +437,9 @@ mod tests {
         let resp = core.run(handler.call(req)).unwrap();
 
         assert_eq!(resp.status(), StatusCode::NoContent);
-        assert_eq!(resp.headers().get::<ContentType>(), Some(&ContentType::plaintext()));
+        assert_eq!(
+            resp.headers().get::<ContentType>(),
+            Some(&ContentType::plaintext())
+        );
     }
 }

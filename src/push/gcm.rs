@@ -4,15 +4,15 @@ use std::str::{FromStr, from_utf8};
 
 use futures::Stream;
 use futures::future::{self, Future};
-use hyper::{Client, StatusCode, Request, Method, Uri, Chunk};
-use hyper::header::{ContentType, ContentLength, Authorization};
+use hyper::header::{Authorization, ContentLength, ContentType};
+use hyper::{Chunk, Client, Method, Request, StatusCode, Uri};
 use hyper_tls::HttpsConnector;
 use serde_json as json;
 use tokio_core::reactor::Handle;
 
-use ::errors::PushError;
-use ::push::{GcmToken, ThreemaPayload};
-use ::utils::BoxedFuture;
+use errors::PushError;
+use push::{GcmToken, ThreemaPayload};
+use utils::BoxedFuture;
 
 #[cfg(test)]
 use mockito::SERVER_URL;
@@ -85,9 +85,12 @@ pub fn send_push(
     // Create async HTTP client instance
     let https_connector = match HttpsConnector::new(4, &handle) {
         Ok(conn) => conn,
-        Err(e) => return boxed!(future::err(
-            PushError::Other(format!("Could not create HttpsConnector: {}", e))
-        ))
+        Err(e) => {
+            return boxed!(future::err(PushError::Other(format!(
+                "Could not create HttpsConnector: {}",
+                e
+            ))))
+        },
     };
     let client = Client::configure()
         .connector(https_connector)
@@ -98,58 +101,69 @@ pub fn send_push(
     debug!("Payload: {}", payload_string);
 
     // Build response future
-    let response_future = client.request({
-        let uri = Uri::from_str(&(GCM_ENDPOINT.to_string() + GCM_PATH)).unwrap();
-        let mut req = Request::new(Method::Post, uri);
-        req.headers_mut().set(Authorization(format!("key={}", api_key)));
-        req.headers_mut().set(ContentType::json());
-        req.headers_mut().set(ContentLength(payload_string.len() as u64));
-        req.set_body(payload_string);
-        req
-    }).map_err(|e| PushError::SendError(e));
+    let response_future = client
+        .request({
+            let uri = Uri::from_str(&(GCM_ENDPOINT.to_string() + GCM_PATH)).unwrap();
+            let mut req = Request::new(Method::Post, uri);
+            req.headers_mut()
+                .set(Authorization(format!("key={}", api_key)));
+            req.headers_mut().set(ContentType::json());
+            req.headers_mut()
+                .set(ContentLength(payload_string.len() as u64));
+            req.set_body(payload_string);
+            req
+        })
+        .map_err(|e| PushError::SendError(e));
 
     let body_read_error = |e| PushError::Other(format!("Could not read GCM response body: {}", e));
 
     // Process response
-    let chunk_future = response_future.and_then(|response| { // Future<Item=Chunk, Error=PushError>
+    let chunk_future = response_future.and_then(|response| {
+        // Future<Item=Chunk, Error=PushError>
         match response.status() {
-            StatusCode::Ok =>
-                boxed!(response.body().concat2().map_err(body_read_error)),
-            StatusCode::BadRequest =>
-                boxed!(future::err(PushError::ProcessingError("400 Bad Request".into()))),
-            StatusCode::Unauthorized =>
-                boxed!(future::err(PushError::ProcessingError("Unauthorized. Is the API token correct?".into()))),
-            _ =>
-                boxed!(response.body().concat2()
-                    .map_err(body_read_error)
-                    .and_then(|chunk| {
-                        match from_utf8(&*chunk) {
-                            Ok(body) => Err(PushError::Other(format!("Unknown error: {}", body))),
-                            Err(_) => Err(PushError::Other("Unknown error (and non-UTF-8 body)".into())),
-                        }
-                    })
+            StatusCode::Ok => boxed!(response.body().concat2().map_err(body_read_error)),
+            StatusCode::BadRequest => boxed!(future::err(PushError::ProcessingError(
+                "400 Bad Request".into()
+            ))),
+            StatusCode::Unauthorized => boxed!(future::err(PushError::ProcessingError(
+                "Unauthorized. Is the API token correct?".into()
+            ))),
+            _ => boxed!(
+                response.body().concat2().map_err(body_read_error).and_then(
+                    |chunk| match from_utf8(&*chunk) {
+                        Ok(body) => Err(PushError::Other(format!("Unknown error: {}", body))),
+                        Err(_) => Err(PushError::Other(
+                            "Unknown error (and non-UTF-8 body)".into(),
+                        )),
+                    },
                 )
+            ),
         }
     });
 
     // Process response body
     boxed!(chunk_future.and_then(|chunk: Chunk| {
         // Decode UTF8 bytes
-        let json_body = from_utf8(&*chunk)
-            .map_err(|_| PushError::Other("Could not decode response JSON: Invalid UTF-8".into()))?;
+        let json_body = from_utf8(&*chunk).map_err(|_| {
+            PushError::Other("Could not decode response JSON: Invalid UTF-8".into())
+        })?;
 
         // Parse JSON
-        let data = json::from_str::<MessageResponse>(json_body)
-            .map_err(|e| PushError::Other(
-                format!("Could not decode response JSON: `{}` (Reason: {})", json_body, e)
-            ))?;
+        let data = json::from_str::<MessageResponse>(json_body).map_err(|e| {
+            PushError::Other(format!(
+                "Could not decode response JSON: `{}` (Reason: {})",
+                json_body, e
+            ))
+        })?;
 
         match data.success {
             1 => {
                 trace!("Success details: {:?}", data);
                 Ok(())
             },
-            _ => Err(PushError::ProcessingError("Success count in response is not 1".into())),
+            _ => Err(PushError::ProcessingError(
+                "Success count in response is not 1".into(),
+            )),
         }
     }))
 }

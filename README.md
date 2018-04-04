@@ -85,6 +85,16 @@ To run tests:
 
     cargo test
 
+## Linting
+
+Install rustfmt on your nightly toolchain:
+
+    rustup component add rustfmt-preview --toolchain nightly
+
+Then reformat your code:
+
+    cargo +nightly fmt
+
 ## License
 
 Licensed under either of
