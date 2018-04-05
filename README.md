@@ -1,4 +1,4 @@
-# GCM Push Relay
+# GCM/APNs Push Relay
 
 [![CircleCI][circle-ci-badge]][circle-ci]
 [![License][license-badge]][license]
