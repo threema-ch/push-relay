@@ -103,7 +103,8 @@ impl Service for PushHandler {
 
         /// Create a "bad request" response.
         macro_rules! bad_request {
-            ($text:expr) => {
+            ($text:expr) => {{
+                warn!("Returning \"bad request\" response: {}", $text);
                 boxed!(future::ok(
                     Response::new()
                         .with_status(StatusCode::BadRequest)
@@ -111,7 +112,7 @@ impl Service for PushHandler {
                         .with_header(ContentLength($text.len() as u64))
                         .with_body($text)
                 ))
-            };
+            }};
         }
 
         // Verify content type
