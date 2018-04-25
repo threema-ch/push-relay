@@ -284,9 +284,7 @@ mod tests {
 
     use super::*;
 
-    use std::str::FromStr;
-
-    use hyper::{Body, Uri};
+    use hyper::Body;
 
     use self::mockito::mock;
     use self::openssl::ec::{EcGroup, EcKey};
@@ -332,111 +330,115 @@ mod tests {
     /// Handle invalid paths
     #[test]
     fn test_invalid_path() {
-        let (mut core, handler) = get_handler();
+        let (mut core, mut handler) = get_handler();
 
-        let req = Request::new(Method::Post, Uri::from_str("/larifari").unwrap());
+        let req = Request::post("/larifari").body(Body::empty()).unwrap();
         let resp = core.run(handler.call(req)).unwrap();
 
-        assert_eq!(resp.status(), StatusCode::NotFound);
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
     /// Handle invalid methods
     #[test]
     fn test_invalid_method() {
-        let (mut core, handler) = get_handler();
+        let (mut core, mut handler) = get_handler();
 
-        let req = Request::new(Method::Get, Uri::from_str("/push").unwrap());
+        let req = Request::get("/push").body(Body::empty()).unwrap();
         let resp = core.run(handler.call(req)).unwrap();
 
-        assert_eq!(resp.status(), StatusCode::MethodNotAllowed);
+        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 
     /// Handle invalid request content type
     #[test]
     fn test_invalid_contenttype() {
-        let (mut core, handler) = get_handler();
+        let (mut core, mut handler) = get_handler();
 
-        let req = Request::new(Method::Post, Uri::from_str("/push").unwrap());
+        let req = Request::post("/push").body(Body::empty()).unwrap();
         let resp = core.run(handler.call(req)).unwrap();
 
-        assert_eq!(resp.status(), StatusCode::BadRequest);
-        let body = get_body(&mut core, resp.body());
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body = get_body(&mut core, resp.into_body());
         assert_eq!(&body, "Invalid content type");
     }
 
     /// A request without parameters should result in a HTTP 400 response.
     #[test]
     fn test_no_params() {
-        let (mut core, handler) = get_handler();
+        let (mut core, mut handler) = get_handler();
 
-        let mut req = Request::new(Method::Post, Uri::from_str("/push").unwrap());
-        req.headers_mut().set(ContentType::form_url_encoded());
+        let req = Request::post("/push")
+            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .body(Body::empty())
+            .unwrap();
         let resp = core.run(handler.call(req)).unwrap();
 
-        assert_eq!(resp.status(), StatusCode::BadRequest);
-        let body = get_body(&mut core, resp.body());
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body = get_body(&mut core, resp.into_body());
         assert_eq!(&body, "Invalid or missing parameters");
     }
 
     /// A request with missing parameters should result in a HTTP 400 response.
     #[test]
     fn test_missing_params() {
-        let (mut core, handler) = get_handler();
+        let (mut core, mut handler) = get_handler();
 
-        let mut req = Request::new(Method::Post, Uri::from_str("/push").unwrap());
-        req.headers_mut().set(ContentType::form_url_encoded());
-        req.set_body("token=1234");
+        let req = Request::post("/push")
+            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .body("token=1234".into())
+            .unwrap();
         let resp = core.run(handler.call(req)).unwrap();
 
-        assert_eq!(resp.status(), StatusCode::BadRequest);
-        let body = get_body(&mut core, resp.body());
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body = get_body(&mut core, resp.into_body());
         assert_eq!(&body, "Invalid or missing parameters");
     }
 
     /// A request with missing parameters should result in a HTTP 400 response.
     #[test]
     fn test_missing_params_apns() {
-        let (mut core, handler) = get_handler();
+        let (mut core, mut handler) = get_handler();
 
-        let mut req = Request::new(Method::Post, Uri::from_str("/push").unwrap());
-        req.headers_mut().set(ContentType::form_url_encoded());
-        req.set_body("type=apns&token=1234&session=123deadbeef&version=3");
+        let req = Request::post("/push")
+            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .body("type=apns&token=1234&session=123deadbeef&version=3".into())
+            .unwrap();
         let resp = core.run(handler.call(req)).unwrap();
 
-        assert_eq!(resp.status(), StatusCode::BadRequest);
-        let body = get_body(&mut core, resp.body());
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body = get_body(&mut core, resp.into_body());
         assert_eq!(&body, "Invalid or missing parameters");
     }
 
     /// A request with bad parameters should result in a HTTP 400 response.
     #[test]
     fn test_bad_endpoint() {
-        let (mut core, handler) = get_handler();
+        let (mut core, mut handler) = get_handler();
 
-        let mut req = Request::new(Method::Post, Uri::from_str("/push").unwrap());
-        req.headers_mut().set(ContentType::form_url_encoded());
-        req.set_body(
-            "type=apns&token=1234&session=123deadbeef&version=3&bundleid=jklö&endpoint=q",
-        );
+        let req = Request::post("/push")
+            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .body("type=apns&token=1234&session=123deadbeef&version=3&bundleid=jklö&endpoint=q".into())
+            .unwrap();
         let resp = core.run(handler.call(req)).unwrap();
 
-        assert_eq!(resp.status(), StatusCode::BadRequest);
-        let body = get_body(&mut core, resp.body());
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body = get_body(&mut core, resp.into_body());
         assert_eq!(&body, "Invalid or missing parameters");
     }
 
     /// A request wit missing parameters should result in a HTTP 400 response.
     #[test]
     fn test_bad_token_type() {
-        let (mut core, handler) = get_handler();
+        let (mut core, mut handler) = get_handler();
 
-        let mut req = Request::new(Method::Post, Uri::from_str("/push").unwrap());
-        req.headers_mut().set(ContentType::form_url_encoded());
-        req.set_body("type=abc&token=aassddff&session=deadbeef&version=1");
+        let req = Request::post("/push")
+            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .body("type=abc&token=aassddff&session=deadbeef&version=1".into())
+            .unwrap();
         let resp = core.run(handler.call(req)).unwrap();
 
-        assert_eq!(resp.status(), StatusCode::BadRequest);
-        let body = get_body(&mut core, resp.body());
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body = get_body(&mut core, resp.into_body());
         assert_eq!(&body, "Invalid or missing parameters");
     }
 
@@ -455,17 +457,18 @@ mod tests {
             )
             .create();
 
-        let (mut core, handler) = get_handler();
+        let (mut core, mut handler) = get_handler();
 
-        let mut req = Request::new(Method::Post, Uri::from_str("/push").unwrap());
-        req.headers_mut().set(ContentType::form_url_encoded());
-        req.set_body("type=gcm&token=aassddff&session=deadbeef&version=1");
+        let req = Request::post("/push")
+            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .body("type=gcm&token=aassddff&session=deadbeef&version=1".into())
+            .unwrap();
         let resp = core.run(handler.call(req)).unwrap();
 
-        assert_eq!(resp.status(), StatusCode::NoContent);
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
         assert_eq!(
-            resp.headers().get::<ContentType>(),
-            Some(&ContentType::plaintext())
+            resp.headers().get(CONTENT_TYPE).unwrap().to_str().unwrap(),
+            "text/plain",
         );
     }
 }
