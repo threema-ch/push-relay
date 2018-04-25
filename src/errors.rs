@@ -1,10 +1,13 @@
-use apns2::error::Error as Apns2Error;
+use std::error;
+use std::fmt;
+
+use a2::error::Error as A2Error;
 use hyper::error::Error as HyperError;
 
 quick_error! {
     #[derive(Debug)]
-    pub enum PushError {
-        ApnsError(err: Apns2Error) {
+    pub enum PushRelayError {
+        ApnsError(err: A2Error) {
             from()
             display("APNs error: {}", err)
             cause(err)
@@ -14,9 +17,14 @@ quick_error! {
             display("Hyper error: {}", err)
             cause(err)
         }
-        SendError(err: HyperError) {
-            display("Push message could not be sent: {}", err)
-            cause(err)
+    }
+}
+
+quick_error! {
+    #[derive(Debug)]
+    pub enum SendPushError {
+        SendError(msg: String) {
+            display("Push message could not be sent: {}", msg)
         }
         ProcessingError(msg: String) {
             display("Push message could not be processed: {}", msg)
@@ -24,5 +32,25 @@ quick_error! {
         Other(msg: String) {
             display("Other: {}", msg)
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ServiceError(String);
+
+impl ServiceError {
+    pub fn new(msg: String) -> Self {
+        ServiceError(msg)
+    }
+}
+impl fmt::Display for ServiceError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "ServiceError: {}", self.0)
+    }
+}
+
+impl error::Error for ServiceError {
+    fn description(&self) -> &str {
+        &self.0
     }
 }

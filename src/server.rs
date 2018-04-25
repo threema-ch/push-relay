@@ -1,20 +1,23 @@
 use std::convert::Into;
 use std::net::SocketAddr;
-use std::rc::Rc;
+use std::ops::Deref;
+use std::sync::{Arc, Mutex};
 
-use apns2::client::{Client as ApnsClient, Endpoint};
+use a2::client::{Client as ApnsClient, Endpoint};
 use futures::Stream;
-use futures::future::{self, Future};
-use hyper::header::{ContentLength, ContentType};
-use hyper::server::{Http, Request, Response, Service};
-use hyper::{Error as HyperError, Method, StatusCode};
-use tokio_core::reactor::{Core, Handle};
+use futures::future::{self, Future, FutureResult};
+use http::{Request, Response};
+use http::header::{CONTENT_LENGTH, CONTENT_TYPE};
+use http::status::StatusCode;
+use hyper::{Body, Chunk, Method};
+use hyper::server::Server;
+use hyper::service::Service;
+use tokio_core::reactor::Core;
 use url::form_urlencoded;
 
-use errors::PushError;
+use errors::{PushRelayError, SendPushError, ServiceError};
 use push::{ApnsToken, GcmToken, PushToken};
 use push::{apns, gcm};
-use utils::BoxedFuture;
 
 
 /// Start the server and run infinitely.
@@ -24,80 +27,83 @@ pub fn serve(
     apns_team_id: &str,
     apns_key_id: &str,
     listen_on: SocketAddr,
-) -> Result<(), PushError> {
+) -> Result<(), PushRelayError> {
     // TODO: CSRF
 
     // Create reactor loop
     let mut core = Core::new().expect("Could not start event loop");
 
-    // Create APNs client
-    let apns_client_prod = Rc::new(apns::create_client(
-        core.handle(),
+    // Create APNs clients
+    let apns_client_prod = Arc::new(Mutex::new(apns::create_client(
         Endpoint::Production,
         apns_api_key.as_slice(),
         apns_team_id,
         apns_key_id,
-    )?);
-    let apns_client_sbox = Rc::new(apns::create_client(
-        core.handle(),
+    )?));
+    let apns_client_sbox = Arc::new(Mutex::new(apns::create_client(
         Endpoint::Sandbox,
         apns_api_key.as_slice(),
         apns_team_id,
         apns_key_id,
-    )?);
+    )?));
+
+    // Service function
+    let gcm_api_key_owned = gcm_api_key.to_string();
+    let new_service = move || {
+        let future: FutureResult<PushHandler, ServiceError> = future::ok(
+            PushHandler {
+                gcm_api_key: gcm_api_key_owned.clone(),
+                apns_client_prod: apns_client_prod.clone(),
+                apns_client_sbox: apns_client_sbox.clone(),
+            }
+        );
+        future
+    };
 
     // Create server
-    let handle = core.handle();
-    let serve = Http::new().serve_addr_handle(&listen_on, &core.handle(), || {
-        Ok(PushHandler {
-            gcm_api_key: gcm_api_key.to_string(),
-            apns_client_prod: apns_client_prod.clone(),
-            apns_client_sbox: apns_client_sbox.clone(),
-            handle: handle.clone(),
-        })
-    })?;
+    let server = Server::bind(&listen_on).serve(new_service);
 
     // Start server
-    let handle = core.handle();
-    let server = serve.for_each(move |conn| {
-        handle.spawn(conn.map(|_| ()).map_err(|e| error!("Serve error: {}", e)));
-        Ok(())
-    });
     core.run(server).map_err(Into::into)
 }
+
 
 /// The server endpoint that accepts incoming push requests.
 pub struct PushHandler {
     gcm_api_key: String,
-    apns_client_prod: Rc<ApnsClient>,
-    apns_client_sbox: Rc<ApnsClient>,
-    handle: Handle,
+    apns_client_prod: Arc<Mutex<ApnsClient>>,
+    apns_client_sbox: Arc<Mutex<ApnsClient>>,
 }
 
 impl Service for PushHandler {
     // Boilerplate for hooking up hyper's server types
-    type Request = Request;
-    type Response = Response;
-    type Error = HyperError;
+    type ReqBody = Body;
+    type ResBody = Body;
+    type Error = ServiceError;
 
     // The future representing the eventual response
-    type Future = BoxedFuture<Self::Response, Self::Error>;
+    type Future = Box<Future<Item=Response<Self::ResBody>, Error=Self::Error> + Send>;
 
-    fn call(&self, req: Request) -> Self::Future {
-        let (method, uri, _version, headers, body) = req.deconstruct();
-        info!("{} {}", method, uri);
+    fn call(&mut self, req: Request<Self::ResBody>) -> Self::Future {
+        info!("{} {}", req.method(), req.uri());
 
         // Verify path
-        if uri.path() != "/push" {
+        if req.uri().path() != "/push" {
             return Box::new(future::ok(
-                Response::new().with_status(StatusCode::NotFound),
+                Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .body(Body::empty())
+                    .unwrap()
             ));
         }
 
         // Verify method
-        if method != Method::Post {
+        if req.method() != &Method::POST {
             return Box::new(future::ok(
-                Response::new().with_status(StatusCode::MethodNotAllowed),
+                Response::builder()
+                    .status(StatusCode::METHOD_NOT_ALLOWED)
+                    .body(Body::empty())
+                    .unwrap(),
             ));
         }
 
@@ -105,28 +111,41 @@ impl Service for PushHandler {
         macro_rules! bad_request {
             ($text:expr) => {{
                 warn!("Returning \"bad request\" response: {}", $text);
-                boxed!(future::ok(
-                    Response::new()
-                        .with_status(StatusCode::BadRequest)
-                        .with_header(ContentType::plaintext())
-                        .with_header(ContentLength($text.len() as u64))
-                        .with_body($text)
+                Box::new(future::ok(
+                    Response::builder()
+                        .status(StatusCode::BAD_REQUEST)
+                        .header(CONTENT_TYPE, "text/plain")
+                        .header(CONTENT_LENGTH, &*$text.len().to_string())
+                        .body(Body::from($text))
+                        .unwrap()
+                )) as Box<Future<Item=_, Error=ServiceError> + Send>
+            }};
+        }
+
+        /// Create an "internal server error" response.
+        macro_rules! server_error {
+            ($text:expr) => {{
+                warn!("Returning \"invalid server error\" response: {}", $text);
+                Box::new(future::ok(
+                    Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .body(Body::empty())
+                        .unwrap()
                 ))
             }};
         }
 
         // Verify content type
-        let content_type = headers.get::<ContentType>();
-        match content_type {
-            Some(ct) if ct.type_() == "application" && ct.subtype() == "x-www-form-urlencoded" => {
-                /* ok */
-            },
-            _ => return bad_request!("Invalid content type"),
-        };
+        {
+            let content_type = req.headers().get(CONTENT_TYPE).and_then(|h| h.to_str().ok());
+            if content_type != Some("application/x-www-form-urlencoded") {
+                return bad_request!("Invalid content type");
+            }
+        } // Waiting for NLL
 
         // Parse request body
+        let body = req.into_body();
         let gcm_api_key_clone = self.gcm_api_key.clone();
-        let handle_clone = self.handle.clone();
         let apns_client_prod_clone = self.apns_client_prod.clone();
         let apns_client_sbox_clone = self.apns_client_sbox.clone();
 
@@ -135,9 +154,10 @@ impl Service for PushHandler {
             // Hyper supports streamed requests, so we first need to
             // concatenate chunks until the request body is complete.
             .concat2()
+            .map_err(|e| ServiceError::new(e.to_string()))
 
             // Once the body is complete, process it
-            .and_then(move |body| {
+            .and_then(move |body: Chunk| {
                 let parsed = form_urlencoded::parse(&body).collect::<Vec<_>>();
 
                 // Validate parameters
@@ -203,7 +223,6 @@ impl Service for PushHandler {
                 info!("Sending push message to {} for session {} [v{}]", push_token.abbrev(), session_public_key, version);
                 let push_future = match push_token {
                     PushToken::Gcm(ref token) => gcm::send_push(
-                        handle_clone,
                         gcm_api_key_clone,
                         token,
                         version,
@@ -213,9 +232,15 @@ impl Service for PushHandler {
                     ),
                     PushToken::Apns(ref token) => apns::send_push(
                         match endpoint.unwrap() {
-                            Endpoint::Production => &apns_client_prod_clone,
-                            Endpoint::Sandbox => &apns_client_sbox_clone,
-                        },
+                            Endpoint::Production => match apns_client_prod_clone.lock() {
+                                Ok(guard) => guard,
+                                Err(_) => return server_error!("Could not lock apns_client_prod_clone mutex"),
+                            },
+                            Endpoint::Sandbox => match apns_client_sbox_clone.lock() {
+                                Ok(guard) => guard,
+                                Err(_) => return server_error!("Could not lock apns_client_sbox_clone mutex"),
+                            },
+                        }.deref(),
                         token,
                         bundle_id.expect("bundle_id is None"),
                         version,
@@ -223,27 +248,30 @@ impl Service for PushHandler {
                     ),
                 };
 
-                boxed!(push_future
+                Box::new(push_future
                     .map(|_| {
                         debug!("Success!");
-                        Response::new()
-                            .with_status(StatusCode::NoContent)
-                            .with_header(ContentLength(0))
-                            .with_header(ContentType::plaintext())
+                        Response::builder()
+                            .status(StatusCode::NO_CONTENT)
+                            .header(CONTENT_TYPE, "text/plain")
+                            .body(Body::empty())
+                            .unwrap()
                     })
-                    .or_else(|e| {
+                    .or_else(|e: SendPushError| {
                         warn!("Error: {}", e);
                         let body = "Push not successful";
-                        future::ok(Response::new()
-                            .with_status(StatusCode::InternalServerError)
-                            .with_header(ContentType::plaintext())
-                            .with_header(ContentLength(body.len() as u64))
-                            .with_body(body))
+                        future::ok(Response::builder()
+                            .status(StatusCode::INTERNAL_SERVER_ERROR)
+                            .header(CONTENT_LENGTH, &*body.len().to_string())
+                            .header(CONTENT_TYPE, "text/plain")
+                            .body(Body::from(body))
+                            .unwrap())
                     })
-                )
-            });
+                ) as Box<Future<Item=_, Error=ServiceError> + Send>
+            })
+            .map_err(|e| ServiceError::new(e.to_string()));
 
-        Box::new(response_future) as BoxedFuture<_, _>
+        Box::new(response_future)
     }
 }
 
@@ -282,14 +310,12 @@ mod tests {
         let core = Core::new().unwrap();
         let api_key = get_apns_test_key();
         let apns_client_prod = apns::create_client(
-            core.handle(),
             Endpoint::Production,
             api_key.as_slice(),
             "team_id",
             "key_id",
         ).unwrap();
         let apns_client_sbox = apns::create_client(
-            core.handle(),
             Endpoint::Sandbox,
             api_key.as_slice(),
             "team_id",
@@ -297,9 +323,8 @@ mod tests {
         ).unwrap();
         let handler = PushHandler {
             gcm_api_key: "aassddff".into(),
-            apns_client_prod: Rc::new(apns_client_prod),
-            apns_client_sbox: Rc::new(apns_client_sbox),
-            handle: core.handle(),
+            apns_client_prod: Arc::new(Mutex::new(apns_client_prod)),
+            apns_client_sbox: Arc::new(Mutex::new(apns_client_sbox)),
         };
         (core, handler)
     }
@@ -391,7 +416,7 @@ mod tests {
         let mut req = Request::new(Method::Post, Uri::from_str("/push").unwrap());
         req.headers_mut().set(ContentType::form_url_encoded());
         req.set_body(
-            "type=apns&token=1234&session=123deadbeef&version=3&bundleid=asdf&endpoint=q",
+            "type=apns&token=1234&session=123deadbeef&version=3&bundleid=jklö&endpoint=q",
         );
         let resp = core.run(handler.call(req)).unwrap();
 

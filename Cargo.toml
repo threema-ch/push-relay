@@ -6,13 +6,14 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/threema-ch/push-relay"
 
 [dependencies]
-apns2 = { git = "https://github.com/pimeys/apns2" }
+a2 = { git = "https://github.com/pimeys/a2" }
 chrono = "0.4"
 clap = "2"
 env_logger = "0.5"
 futures = "0.1"
-hyper = { git = "https://github.com/hyperium/hyper", branch = "h2", features = ["http2"] }
-hyper-tls = "0.1"
+http = "0.1"
+hyper = { git = "https://github.com/hyperium/hyper" }
+hyper-tls = { git = "https://github.com/hyperium/hyper-tls" }
 log = "0.4"
 mime = "0.3"
 quick-error = "1.1"
@@ -28,6 +29,3 @@ mockito = "0.9"
 argparse = "*"
 pretty_env_logger = "*"
 openssl = "*"
-
-[patch.crates-io]
-hyper = { version = "0.11.18", git = "https://github.com/hyperium/hyper", branch = "h2", features = ["http2"] }

@@ -68,7 +68,7 @@ that looks like this:
 
 Then simply run
 
-    export RUST_LOG=push_relay=debug,hyper=info
+    export RUST_LOG=push_relay=debug,hyper=info,a2=info
     cargo run
 
 ...to build and start the server in debug mode.
@@ -77,7 +77,7 @@ Then simply run
 
 - Always create a build in release mode: `cargo build --release`
 - Use a reverse proxy with proper TLS termination (e.g. Nginx)
-- Set `RUST_LOG=push_relay=info,hyper=info` env variable
+- Set `RUST_LOG=push_relay=info,hyper=info,a2=info` env variable
 
 ## Testing
 
