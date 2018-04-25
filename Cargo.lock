@@ -684,7 +684,7 @@ dependencies = [
 
 [[package]]
 name = "push-relay"
-version = "1.0.0"
+version = "2.0.0-pre.0"
 dependencies = [
  "a2 0.2.0-pre.0 (git+https://github.com/pimeys/a2)",
  "argparse 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
