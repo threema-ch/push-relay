@@ -267,7 +267,7 @@ impl Service for PushHandler {
                             .body(Body::from(body))
                             .unwrap())
                     })
-                ) as Box<Future<Item=_, Error=ServiceError> + Send>
+                )
             })
             .map_err(|e| ServiceError::new(e.to_string()));
 
