@@ -1,6 +1,8 @@
 version: 2
+
 jobs:
-  build:
+
+  test:
     docker:
       - image: rust:1.23
     steps:
@@ -13,7 +15,6 @@ jobs:
             - v4-cargo-cache-{{ .Branch }}
             - v4-cargo-cache
       - run: cargo build && cargo test
-      - run: cargo install --force cargo-audit && cargo audit
       - save_cache:
           key: v4-cargo-cache-{{ checksum "Cargo.lock" }}
           paths:
@@ -29,3 +30,38 @@ jobs:
           paths:
             - target
             - /usr/local/cargo
+  audit:
+    docker:
+      - image: rust:1.23
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-cargo-audit-cache
+      - run: cargo install --force cargo-audit && cargo audit
+      - save_cache:
+          key: v1-cargo-audit-cache
+          paths:
+            - /usr/local/cargo
+
+workflows:
+  version: 2
+
+  # Build on push
+  on_push:
+    jobs:
+      - test
+      - audit
+
+  # Build master every week on Monday at 04:00 am
+  weekly:
+    triggers:
+      - schedule:
+          cron: "0 4 * * 1"
+          filters:
+            branches:
+              only:
+                - master
+    jobs:
+      - test
+      - audit
