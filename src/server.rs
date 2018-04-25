@@ -138,8 +138,10 @@ impl Service for PushHandler {
         // Verify content type
         {
             let content_type = req.headers().get(CONTENT_TYPE).and_then(|h| h.to_str().ok());
-            if content_type != Some("application/x-www-form-urlencoded") {
-                return bad_request!("Invalid content type");
+            match content_type {
+                Some(ct) if ct.starts_with("application/x-www-form-urlencoded") => {},
+                Some(ct) => return bad_request!(format!("Invalid content type: {}", ct)),
+                None => return bad_request!("Missing content type"),
             }
         } // Waiting for NLL
 
@@ -354,12 +356,28 @@ mod tests {
     fn test_invalid_contenttype() {
         let (mut core, mut handler) = get_handler();
 
+        let req = Request::post("/push")
+            .header(CONTENT_TYPE, "text/plain")
+            .body(Body::empty())
+            .unwrap();
+        let resp = core.run(handler.call(req)).unwrap();
+
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body = get_body(&mut core, resp.into_body());
+        assert_eq!(&body, "Invalid content type: text/plain");
+    }
+
+    /// Handle missing request content type
+    #[test]
+    fn test_missing_contenttype() {
+        let (mut core, mut handler) = get_handler();
+
         let req = Request::post("/push").body(Body::empty()).unwrap();
         let resp = core.run(handler.call(req)).unwrap();
 
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
         let body = get_body(&mut core, resp.into_body());
-        assert_eq!(&body, "Invalid content type");
+        assert_eq!(&body, "Missing content type");
     }
 
     /// A request without parameters should result in a HTTP 400 response.
