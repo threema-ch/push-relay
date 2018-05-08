@@ -16,7 +16,7 @@ use tokio_core::reactor::Core;
 use url::form_urlencoded;
 
 use errors::{PushRelayError, SendPushError, ServiceError};
-use push::{ApnsToken, GcmToken, PushToken};
+use push::{ApnsToken, GcmToken, PushToken, WakeupType};
 use push::{apns, gcm};
 
 
@@ -207,6 +207,15 @@ impl Service for PushHandler {
                         return bad_request!("Invalid or missing parameters");
                     },
                 };
+                let wakeup_string = find_or_default!("wakeup", "0");
+                let wakeup_type: WakeupType = match wakeup_string.trim() {
+					"0" => WakeupType::FullReconnect,
+                    "1" => WakeupType::Wakeup,
+                    _ => {
+                        warn!("Got push request with invalid wakeup param: {:?}", wakeup_string);
+                        return bad_request!("Invalid or missing wakeup type");
+                    },
+                };
                 let (bundle_id, endpoint) = match push_token {
                     PushToken::Apns(_) => {
                         let bundle_id = Some(find_or_bad_request!("bundleid").to_owned());
@@ -228,6 +237,7 @@ impl Service for PushHandler {
                         gcm_api_key_clone,
                         token,
                         version,
+                        wakeup_type,
                         &session_public_key,
                         gcm::Priority::High,
                         90,
@@ -246,6 +256,7 @@ impl Service for PushHandler {
                         token,
                         bundle_id.expect("bundle_id is None"),
                         version,
+                        wakeup_type,
                         &session_public_key,
                     ),
                 };

@@ -17,15 +17,16 @@ Request keys:
 - `token`: The device push token
 - `session`: SHA256 hash of public permanent key of the initiator
 - `version`: Threema Web protocol version
+- `wakeup`: Wakeup type (0 = full reconnect, 1 = wakeup)
 - `bundleid` (APNs only): The bundle id to use
 - `endpoint` (APNs only): Either `p` (production) or `s` (sandbox)
 
 Examples:
 
     curl -X POST -H "Origin: https://localhost" localhost:3000/push \
-        -d "type=gcm&token=asdf&session=123deadbeef&version=3"
+        -d "type=gcm&token=asdf&session=123deadbeef&version=3&wakeup=0"
     curl -X POST -H "Origin: https://localhost" localhost:3000/push \
-        -d "type=apns&token=asdf&session=123deadbeef&version=3&bundleid=com.example.app&endpoint=s"
+        -d "type=apns&token=asdf&session=123deadbeef&version=3&wakeup=1&bundleid=com.example.app&endpoint=s"
 
 Possible response codes:
 
@@ -41,6 +42,7 @@ The payload format looks like this:
   initiator), `string`
 - `wct`: Unix epoch timestamp of the request in seconds, `i64`
 - `wcv`: Protocol version, `u16`
+- `wcw`: Wakeup type, `u8` (0 = full reconnect, 1 = wakeup)
 
 ### GCM
 

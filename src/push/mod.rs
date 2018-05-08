@@ -28,6 +28,23 @@ impl PushToken {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub enum WakeupType {
+    /// A full reconnect (by entering the password on the main screen).
+    FullReconnect,
+    /// A wakeup, as implemented by the iOS app.
+    Wakeup,
+}
+
+impl Into<u8> for WakeupType {
+    fn into(self) -> u8 {
+        match self {
+            WakeupType::FullReconnect => 0,
+            WakeupType::Wakeup => 1,
+        }
+    }
+}
+
 /// Payload sent to end device inside the push notification.
 #[derive(Debug, Serialize)]
 struct ThreemaPayload<'a> {
@@ -37,14 +54,17 @@ struct ThreemaPayload<'a> {
     wct: i64,
     /// Version
     wcv: u16,
+    /// Wakeup type
+    wcw: u8,
 }
 
 impl<'a> ThreemaPayload<'a> {
-    pub fn new(session: &'a str, version: u16) -> Self {
+    pub fn new(session: &'a str, version: u16, wakeup_type: u8) -> Self {
         ThreemaPayload {
             wcs: session,
             wct: Utc::now().timestamp(),
             wcv: version,
+            wcw: wakeup_type,
         }
     }
 }
