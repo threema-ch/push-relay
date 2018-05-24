@@ -17,7 +17,7 @@ hyper-tls = { git = "https://github.com/hyperium/hyper-tls" }
 log = "0.4"
 mime = "0.3"
 quick-error = "1.1"
-rust-ini = "0.10"
+rust-ini = "0.12"
 serde = "1.0.27"
 serde_derive = "1.0.27"
 serde_json = "1.0.10"
