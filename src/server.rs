@@ -258,6 +258,7 @@ impl Service for PushHandler {
                         version,
                         wakeup_type,
                         &session_public_key,
+                        30,
                     ),
                 };
 

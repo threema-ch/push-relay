@@ -40,11 +40,12 @@ pub fn send_push<S: Into<String>>(
     version: u16,
     wakeup_type: WakeupType,
     session: &str,
+    ttl: u64,
 ) -> SendFuture<(), SendPushError> {
     // Notification options
     let options = NotificationOptions {
         apns_id: None,
-        apns_expiration: Some(30),
+        apns_expiration: Some(ttl),
         apns_priority: Priority::High,
         apns_topic: Some(bundle_id.into()),
         apns_collapse_id: None,
