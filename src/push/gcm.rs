@@ -113,7 +113,7 @@ pub fn send_push(
     let body_read_error = |e| SendPushError::Other(format!("Could not read GCM response body: {}", e));
 
     // Process response
-    let chunk_future = response_future.and_then(|response: Response<Body>| {
+    let chunk_future = response_future.and_then(move |response: Response<Body>| {
         // Future<Item=Chunk, Error=SendPushError>
         let status = response.status();
         let body = response.into_body();
