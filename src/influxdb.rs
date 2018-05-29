@@ -133,7 +133,7 @@ impl Influxdb {
         );
         let success_str = if success { "t" } else { "f" };
         self.log(format!(
-            "push,host={},type={},version={} success={}",
+            "push,host={},type={},version={},success={} value=1",
             self.hostname,
             push_type.to_ascii_lowercase(),
             version,
