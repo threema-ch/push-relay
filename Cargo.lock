@@ -635,7 +635,7 @@ dependencies = [
 
 [[package]]
 name = "push-relay"
-version = "2.0.0-pre.1"
+version = "2.0.0-pre.2"
 dependencies = [
  "a2 0.2.0-pre.0 (git+https://github.com/pimeys/a2)",
  "argparse 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -654,7 +654,7 @@ dependencies = [
  "openssl 0.10.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "pretty_env_logger 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "quick-error 1.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "rust-ini 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rust-ini 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.63 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.63 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.18 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -769,7 +769,7 @@ dependencies = [
 
 [[package]]
 name = "rust-ini"
-version = "0.12.0"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -1372,7 +1372,7 @@ dependencies = [
 "checksum regex-syntax 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8f1ac0f60d675cc6cf13a20ec076568254472551051ad5dd050364d70671bf6b"
 "checksum remove_dir_all 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "3488ba1b9a2084d38645c4c08276a1752dcbf2c7130d74f1569681ad5d2799c5"
 "checksum ring 0.13.0-alpha3 (registry+https://github.com/rust-lang/crates.io-index)" = "caa01a2423071513d705e3214187b944be268b34fb44ae7b07eba76ad9e6b01d"
-"checksum rust-ini 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d74f88104648fe3d790d2f16c19c3c1964d01fb9c6ff35cfc75ea10d414ca243"
+"checksum rust-ini 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)" = "d017107127e969e7812825917f4c1a518288f784462d831b1eb214e425677c5d"
 "checksum rustls 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ab72e4883a4fc9fd5cd462a51c55d79f6a7b5c9483e8d73a2b7bca0b18430bcd"
 "checksum safemem 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e27a8b19b835f7aea908818e871f5cc3a5a186550c30773be987e155e8163d8f"
 "checksum schannel 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)" = "85fd9df495640643ad2d00443b3d78aae69802ad488debab4f1dd52fc1806ade"
