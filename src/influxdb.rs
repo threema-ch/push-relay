@@ -131,7 +131,7 @@ impl Influxdb {
             push_type,
             version,
         );
-        let success_str = if success { "t" } else { "f" };
+        let success_str = if success { "true" } else { "false" };
         self.log(format!(
             "push,host={},type={},version={},success={} value=1",
             self.hostname,
