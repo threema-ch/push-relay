@@ -1,4 +1,4 @@
-//! # GCM Push Relay
+//! # GCM/APNs Push Relay
 //!
 //! This server accepts push requests via HTTPS and notifies the GCM push
 //! service.
@@ -8,6 +8,7 @@ extern crate chrono;
 extern crate clap;
 extern crate env_logger;
 extern crate futures;
+extern crate hostname;
 extern crate http;
 extern crate hyper;
 extern crate hyper_tls;
@@ -30,6 +31,7 @@ extern crate mockito;
 #[macro_use]
 mod utils;
 mod errors;
+mod influxdb;
 mod push;
 mod server;
 
@@ -122,6 +124,28 @@ fn main() {
         process::exit(2);
     });
 
+    // Determine InfluxDB config
+    let influxdb = config.section(Some("influxdb".to_owned())).map(|c| {
+        influxdb::Influxdb::new(
+            c.get("connection_string").unwrap_or_else(|| {
+                error!("Invalid config file: No 'connection_string' key in [influxdb] secttion in {}", configfile);
+                process::exit(3);
+            }).to_owned(),
+            c.get("user").unwrap_or_else(|| {
+                error!("Invalid config file: No 'user' key in [influxdb] secttion in {}", configfile);
+                process::exit(3);
+            }).to_owned(),
+            c.get("pass").unwrap_or_else(|| {
+                error!("Invalid config file: No 'pass' key in [influxdb] secttion in {}", configfile);
+                process::exit(3);
+            }).to_owned(),
+            c.get("db").unwrap_or_else(|| {
+                error!("Invalid config file: No 'db' key in [influxdb] secttion in {}", configfile);
+                process::exit(3);
+            }).to_owned(),
+        ).expect("Failed to create Influxdb instance")
+    });
+
     // Open APNs keyfile
     let mut apns_keyfile = File::open(apns_keyfile_path).unwrap_or_else(|e| {
         error!(
@@ -142,7 +166,14 @@ fn main() {
         });
 
     info!("Starting Push Relay Server {} on {}", VERSION, &addr);
-    server::serve(gcm_api_key, apns_api_key, apns_team_id, apns_key_id, addr).unwrap_or_else(
+    server::serve(
+        gcm_api_key,
+        apns_api_key,
+        apns_team_id,
+        apns_key_id,
+        addr,
+        influxdb,
+    ).unwrap_or_else(
         |e| {
             error!("Could not start relay server: {}", e);
             process::exit(3);

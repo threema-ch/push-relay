@@ -11,6 +11,7 @@ chrono = "0.4"
 clap = "2"
 env_logger = "0.5"
 futures = "0.1"
+hostname = "0.1"
 http = "0.1"
 hyper = { git = "https://github.com/hyperium/hyper" }
 hyper-tls = { git = "https://github.com/hyperium/hyper-tls" }

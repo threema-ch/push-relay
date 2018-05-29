@@ -15,7 +15,8 @@ use hyper::service::Service;
 use tokio_core::reactor::Core;
 use url::form_urlencoded;
 
-use errors::{PushRelayError, SendPushError, ServiceError};
+use errors::{PushRelayError, SendPushError, ServiceError, InfluxdbError};
+use influxdb::Influxdb;
 use push::{ApnsToken, GcmToken, PushToken, WakeupType};
 use push::{apns, gcm};
 
@@ -27,6 +28,7 @@ pub fn serve(
     apns_team_id: &str,
     apns_key_id: &str,
     listen_on: SocketAddr,
+    influxdb: Option<Influxdb>,
 ) -> Result<(), PushRelayError> {
     // TODO: CSRF
 
@@ -47,6 +49,32 @@ pub fn serve(
         apns_key_id,
     )?));
 
+    // Check InfluxDB config
+    match influxdb {
+        Some(ref db) => {
+            debug!("Sending stats to InfluxDB");
+            fn log_started(core: &mut Core, db: &Influxdb) {
+                if let Err(e) = core.run(db.log_started()) {
+                    match e {
+                        InfluxdbError::DatabaseNotFound => {
+                            warn!("InfluxDB database does not yet exist. Create it...");
+                            match core.run(db.create_db()) {
+                                Ok(_) => log_started(core, db),
+                                Err(e) => error!("Could not create InfluxDB database: {}", e),
+                            }
+                        },
+                        other => error!("Could not log starting event to InfluxDB: {}", other),
+                    }
+                };
+            };
+            log_started(&mut core, db);
+        },
+        None => debug!("Not using InfluxDB logging"),
+    }
+
+    // Wrap Influxdb in an Arc
+    let influxdb_arc = influxdb.map(Arc::new);
+
     // Service function
     let gcm_api_key_owned = gcm_api_key.to_string();
     let new_service = move || {
@@ -55,6 +83,7 @@ pub fn serve(
                 gcm_api_key: gcm_api_key_owned.clone(),
                 apns_client_prod: apns_client_prod.clone(),
                 apns_client_sbox: apns_client_sbox.clone(),
+                influxdb: influxdb_arc.clone(),
             }
         );
         future
@@ -73,6 +102,7 @@ pub struct PushHandler {
     gcm_api_key: String,
     apns_client_prod: Arc<Mutex<ApnsClient>>,
     apns_client_sbox: Arc<Mutex<ApnsClient>>,
+    influxdb: Option<Arc<Influxdb>>,
 }
 
 impl Service for PushHandler {
@@ -150,6 +180,7 @@ impl Service for PushHandler {
         let gcm_api_key_clone = self.gcm_api_key.clone();
         let apns_client_prod_clone = self.apns_client_prod.clone();
         let apns_client_sbox_clone = self.apns_client_sbox.clone();
+        let influxdb_clone = self.influxdb.clone();
 
         let response_future = body
 
@@ -263,13 +294,27 @@ impl Service for PushHandler {
                 };
 
                 Box::new(push_future
-                    .map(|_| {
+                    .then(move |push_res| {
+                        let influxdb_future = match influxdb_clone {
+                            Some(influxdb) => future::Either::A(
+                                influxdb.log_push(push_token.abbrev(), version, push_res.is_ok())
+                            ),
+                            None => future::Either::B(future::ok(())),
+                        };
+                        influxdb_future.then(|influxdb_res| {
+                            if let Err(e) = influxdb_res {
+                                warn!("Could not submit stats to InfluxDB: {}", e);
+                            }
+                            push_res
+                        })
+                    })
+                    .and_then(|_| {
                         debug!("Success!");
-                        Response::builder()
+                        future::ok(Response::builder()
                             .status(StatusCode::NO_CONTENT)
                             .header(CONTENT_TYPE, "text/plain")
                             .body(Body::empty())
-                            .unwrap()
+                            .unwrap())
                     })
                     .or_else(|e: SendPushError| {
                         warn!("Error: {}", e);
@@ -337,6 +382,7 @@ mod tests {
             gcm_api_key: "aassddff".into(),
             apns_client_prod: Arc::new(Mutex::new(apns_client_prod)),
             apns_client_sbox: Arc::new(Mutex::new(apns_client_sbox)),
+            influxdb: None,
         };
         (core, handler)
     }

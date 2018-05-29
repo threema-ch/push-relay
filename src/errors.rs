@@ -35,6 +35,21 @@ quick_error! {
     }
 }
 
+quick_error! {
+    #[derive(Debug)]
+    pub enum InfluxdbError {
+        Http(msg: String) {
+            display("HTTP error: {}", msg)
+        }
+        DatabaseNotFound {
+            display("Database not found")
+        }
+        Other(msg: String) {
+            display("Other: {}", msg)
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ServiceError(String);
 
