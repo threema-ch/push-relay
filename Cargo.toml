@@ -7,6 +7,7 @@ repository = "https://github.com/threema-ch/push-relay"
 
 [dependencies]
 a2 = { git = "https://github.com/pimeys/a2" }
+base64 = "0.9"
 chrono = "0.4"
 clap = "2"
 env_logger = "0.5"

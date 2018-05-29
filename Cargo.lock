@@ -635,10 +635,11 @@ dependencies = [
 
 [[package]]
 name = "push-relay"
-version = "2.0.0-pre.0"
+version = "2.0.0-pre.1"
 dependencies = [
  "a2 0.2.0-pre.0 (git+https://github.com/pimeys/a2)",
  "argparse 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "base64 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.31.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.5.10 (registry+https://github.com/rust-lang/crates.io-index)",

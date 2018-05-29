@@ -4,6 +4,7 @@
 //! service.
 
 extern crate a2;
+extern crate base64;
 extern crate chrono;
 extern crate clap;
 extern crate env_logger;

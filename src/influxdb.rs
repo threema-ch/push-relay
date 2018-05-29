@@ -1,11 +1,12 @@
 use std::str::from_utf8;
 use std::time::Duration;
 
+use base64;
 use futures::Stream;
 use futures::future::{self, Future, Either};
 use hostname::get_hostname;
 use http::{Request, Response};
-use http::header::CONTENT_TYPE;
+use http::header::{CONTENT_TYPE, AUTHORIZATION};
 use hyper::{Body, Client, StatusCode, Uri};
 use hyper::client::HttpConnector;
 use hyper_tls::HttpsConnector;
@@ -16,8 +17,7 @@ use ::errors::InfluxdbError;
 #[derive(Debug)]
 pub struct Influxdb {
     connection_string: String,
-    user: String,
-    pass: String,
+    authorization: String,
     db: String,
     client: Client<HttpsConnector<HttpConnector>>,
     hostname: String,
@@ -42,14 +42,22 @@ impl Influxdb {
         // Determine hostname
         let hostname = get_hostname().unwrap_or_else(|| "unknown".into());
 
+        // Determine authorization header
+        let authorization = Influxdb::get_authorization_header(&user, &pass);
+
         Ok(Influxdb {
             connection_string,
-            user,
-            pass,
+            authorization,
             db,
             client,
             hostname,
         })
+    }
+
+    fn get_authorization_header(user: &str, pass: &str) -> String {
+        let bytes = format!("{}:{}", user, pass).into_bytes();
+        let encoded = base64::encode(&bytes);
+        format!("Basic {}", encoded)
     }
 
     /// Create the database.
@@ -63,6 +71,7 @@ impl Influxdb {
             .request(
                 Request::post(uri)
                     .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+                    .header(AUTHORIZATION, &*self.authorization)
                     .body(body)
                     .unwrap()
             )
@@ -87,7 +96,12 @@ impl Influxdb {
         // Build response future
         let uri: Uri = format!("{}/write?db={}", &self.connection_string, &self.db).parse().unwrap();
         let response_future = self.client
-            .request(Request::post(uri).body(body).unwrap())
+            .request(
+                Request::post(uri)
+                    .header(AUTHORIZATION, &*self.authorization)
+                    .body(body)
+                    .unwrap()
+            )
             .map_err(|e| InfluxdbError::Http(format!("Request failed: {}", e)));
 
         // Handle response status codes
