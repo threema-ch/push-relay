@@ -68,6 +68,14 @@ that looks like this:
     key_id = "AB123456XY"
     team_id = "CD987654YZ"
 
+If you want to log the pushes to InfluxDB, add the following section:
+
+    [influxdb]
+    connection_string = "http://127.0.0.1:8086"
+    user = "foo"
+    pass = "bar"
+    db = "baz"
+
 Then simply run
 
     export RUST_LOG=push_relay=debug,hyper=info,a2=info
