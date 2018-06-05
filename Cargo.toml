@@ -1,6 +1,6 @@
 [package]
 name = "push-relay"
-version = "2.0.0-pre.2"
+version = "2.0.0-pre.3"
 authors = ["Danilo Bargen <danilo.bargen@threema.ch>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/threema-ch/push-relay"
