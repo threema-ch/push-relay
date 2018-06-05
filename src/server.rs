@@ -249,7 +249,7 @@ impl Service for PushHandler {
                 };
                 let (bundle_id, endpoint) = match push_token {
                     PushToken::Apns(_) => {
-                        let bundle_id = Some(find_or_bad_request!("bundleid").to_owned());
+                        let bundle_id = Some(find_or_bad_request!("bundleid"));
                         let endpoint_str = find_or_bad_request!("endpoint");
                         let endpoint = Some(match endpoint_str.as_ref() {
                             "p" => Endpoint::Production,

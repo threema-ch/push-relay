@@ -33,10 +33,10 @@ where
 }
 
 /// Send an APNs push notification.
-pub fn send_push<S: Into<String>>(
+pub fn send_push(
     client: &Client,
     push_token: &ApnsToken,
-    bundle_id: S,
+    bundle_id: &str,
     version: u16,
     wakeup_type: WakeupType,
     session: &str,
@@ -47,7 +47,7 @@ pub fn send_push<S: Into<String>>(
         apns_id: None,
         apns_expiration: Some(ttl),
         apns_priority: Priority::High,
-        apns_topic: Some(bundle_id.into()),
+        apns_topic: Some(bundle_id),
         apns_collapse_id: None,
     };
     trace!("Notification options: {:#?}", options);

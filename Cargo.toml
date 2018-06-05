@@ -6,7 +6,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/threema-ch/push-relay"
 
 [dependencies]
-a2 = { git = "https://github.com/pimeys/a2" }
+a2 = "0.3"
 base64 = "0.9"
 chrono = "0.4"
 clap = "2"
@@ -14,8 +14,8 @@ env_logger = "0.5"
 futures = "0.1"
 hostname = "0.1"
 http = "0.1"
-hyper = { git = "https://github.com/hyperium/hyper" }
-hyper-tls = { git = "https://github.com/hyperium/hyper-tls" }
+hyper = "0.12"
+hyper-tls = "0.2"
 log = "0.4"
 mime = "0.3"
 quick-error = "1.1"
