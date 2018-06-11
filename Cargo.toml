@@ -1,21 +1,25 @@
 [package]
 name = "push-relay"
-version = "1.0.0"
+version = "2.0.0-pre.3"
 authors = ["Danilo Bargen <danilo.bargen@threema.ch>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/threema-ch/push-relay"
 
 [dependencies]
+a2 = "0.3"
+base64 = "0.9"
 chrono = "0.4"
 clap = "2"
 env_logger = "0.5"
 futures = "0.1"
-hyper = "0.11"
-hyper-tls = "0.1.2"
+hostname = "0.1"
+http = "0.1"
+hyper = "0.12"
+hyper-tls = "0.2"
 log = "0.4"
 mime = "0.3"
 quick-error = "1.1"
-rust-ini = "0.10"
+rust-ini = "0.12"
 serde = "1.0.27"
 serde_derive = "1.0.27"
 serde_json = "1.0.10"
@@ -24,3 +28,6 @@ url = "1.7.0"
 
 [dev-dependencies]
 mockito = "0.9"
+argparse = "*"
+pretty_env_logger = "*"
+openssl = "*"

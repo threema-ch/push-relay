@@ -1,12 +1,12 @@
-use futures::future::{Future};
+use futures::future::Future;
 
 
-/// A type alias for a boxed future.
-pub type BoxedFuture<T, E> = Box<Future<Item = T, Error = E>>;
+/// A type alias for a boxed Future + Send.
+pub type SendFuture<T, E> = Box<Future<Item = T, Error = E> + Send>;
 
-/// Wrap future in a box with type erasure.
-macro_rules! boxed {
+/// Wrap Future + Send in a box with type erasure.
+macro_rules! sboxed {
     ($future:expr) => {{
-        Box::new($future) as BoxedFuture<_, _>
-    }}
+        Box::new($future) as SendFuture<_, _>
+    }};
 }

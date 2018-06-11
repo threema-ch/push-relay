@@ -1,20 +1,32 @@
-# GCM Push Relay
+# GCM/APNs Push Relay
 
 [![CircleCI][circle-ci-badge]][circle-ci]
 [![License][license-badge]][license]
 
-This server accepts push requests via HTTP and notifies the GCM push service.
+This server accepts push requests via HTTP and notifies the Google GCM / Apple
+APNs push services.
 
 ## Request Format
 
 - POST request to `/push`
 - Request body must use `application/x-www-form-urlencoded` encoding
-- The keys `token` (GCM token), `session` (hash of public permanent key of the
-  initiator) and `version` (webclient protocol version) must be present
 
-Example:
+Request keys:
 
-    curl -X POST -H "Origin: https://localhost" localhost:3000/push -d "token=asdf&session=123deadbeef&version=3"
+- `type`: Either `gcm` or `apns`
+- `token`: The device push token
+- `session`: SHA256 hash of public permanent key of the initiator
+- `version`: Threema Web protocol version
+- `wakeup`: Wakeup type (0 = full reconnect, 1 = wakeup)
+- `bundleid` (APNs only): The bundle id to use
+- `endpoint` (APNs only): Either `p` (production) or `s` (sandbox)
+
+Examples:
+
+    curl -X POST -H "Origin: https://localhost" localhost:3000/push \
+        -d "type=gcm&token=asdf&session=123deadbeef&version=3&wakeup=0"
+    curl -X POST -H "Origin: https://localhost" localhost:3000/push \
+        -d "type=apns&token=asdf&session=123deadbeef&version=3&wakeup=1&bundleid=com.example.app&endpoint=s"
 
 Possible response codes:
 
@@ -22,16 +34,26 @@ Possible response codes:
 - `HTTP 400 (Bad Request)`: Invalid or missing POST parameters
 - `HTTP 500 (Internal Server Error)`: Processing of push request failed
 
-## GCM Message Format
+## Push Payload
 
-The GCM message contains the following data keys:
+The payload format looks like this:
 
 - `wcs`: Webclient session (sha256 hash of the public permanent key of the
   initiator), `string`
-- `wct`: Unix epoch timestamp of the request, `i64`
+- `wct`: Unix epoch timestamp of the request in seconds, `i64`
 - `wcv`: Protocol version, `u16`
+- `wcw`: Wakeup type, `u8` (0 = full reconnect, 1 = wakeup)
+
+### GCM
+
+The GCM message contains the payload data as specified above.
 
 The TTL of the message is currently hardcoded to 90 seconds.
+
+### APNs
+
+The APNs message contains a key "3mw" containing the payload data as specified
+above.
 
 ## Running
 
@@ -41,9 +63,22 @@ that looks like this:
     [gcm]
     api_key = "your-api-key"
 
+    [apns]
+    keyfile = "your-keyfile.p8"
+    key_id = "AB123456XY"
+    team_id = "CD987654YZ"
+
+If you want to log the pushes to InfluxDB, add the following section:
+
+    [influxdb]
+    connection_string = "http://127.0.0.1:8086"
+    user = "foo"
+    pass = "bar"
+    db = "baz"
+
 Then simply run
 
-    export RUST_LOG=push_relay=debug
+    export RUST_LOG=push_relay=debug,hyper=info,a2=info
     cargo run
 
 ...to build and start the server in debug mode.
@@ -52,7 +87,23 @@ Then simply run
 
 - Always create a build in release mode: `cargo build --release`
 - Use a reverse proxy with proper TLS termination (e.g. Nginx)
-- Set `RUST_LOG=push_relay=info` env variable
+- Set `RUST_LOG=push_relay=info,hyper=info,a2=info` env variable
+
+## Testing
+
+To run tests:
+
+    cargo test
+
+## Linting
+
+Install rustfmt on your nightly toolchain:
+
+    rustup component add rustfmt-preview --toolchain nightly
+
+Then reformat your code:
+
+    cargo +nightly fmt
 
 ## License
 

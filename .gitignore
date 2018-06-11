@@ -2,3 +2,4 @@ target
 *.swp
 config.ini
 .idea/
+*.p8
