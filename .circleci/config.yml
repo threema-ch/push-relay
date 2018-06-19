@@ -14,7 +14,9 @@ jobs:
             - v4-cargo-cache-{{ checksum "Cargo.lock" }}
             - v4-cargo-cache-{{ .Branch }}
             - v4-cargo-cache
+      - run: cargo install -f tarpaulin
       - run: cargo build && cargo test
+      - run: cargo tarpaulin --coveralls "${CIRCLE_SHA1}-${CIRCLE_BUILD_NUM}" --ciserver circle-ci
       - save_cache:
           key: v4-cargo-cache-{{ checksum "Cargo.lock" }}
           paths:
