@@ -4,7 +4,7 @@ jobs:
 
   test:
     docker:
-      - image: rust:1.26
+      - image: rust:1.28
     steps:
       - checkout
       # Load cargo target from cache if possible.
@@ -32,13 +32,18 @@ jobs:
             - /usr/local/cargo
   audit:
     docker:
-      - image: rust:1.23
+      - image: rust:1.28
     steps:
       - checkout
       - restore_cache:
           keys:
             - v1-cargo-audit-cache
-      - run: cargo install --force cargo-audit && cargo audit
+      - run:
+          name: Install dependencies
+          command: apt update && apt install -y cmake
+      - run:
+          name: Install and run cargo-audit
+          command: cargo install --force cargo-audit && cargo audit
       - save_cache:
           key: v1-cargo-audit-cache
           paths:
