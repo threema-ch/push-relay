@@ -44,9 +44,9 @@ use std::process;
 use clap::{App, Arg};
 use ini::Ini;
 
-const NAME: &'static str = "push-relay";
-const VERSION: &'static str = env!("CARGO_PKG_VERSION");
-const DESCRIPTION: &'static str =
+const NAME: &str = "push-relay";
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+const DESCRIPTION: &str =
     "This server accepts push requests via HTTP and notifies the GCM push service.";
 
 fn main() {
@@ -135,11 +135,11 @@ fn main() {
             c.get("user").unwrap_or_else(|| {
                 error!("Invalid config file: No 'user' key in [influxdb] secttion in {}", configfile);
                 process::exit(3);
-            }).to_owned(),
+            }),
             c.get("pass").unwrap_or_else(|| {
                 error!("Invalid config file: No 'pass' key in [influxdb] secttion in {}", configfile);
                 process::exit(3);
-            }).to_owned(),
+            }),
             c.get("db").unwrap_or_else(|| {
                 error!("Invalid config file: No 'db' key in [influxdb] secttion in {}", configfile);
                 process::exit(3);
@@ -169,7 +169,7 @@ fn main() {
     info!("Starting Push Relay Server {} on {}", VERSION, &addr);
     server::serve(
         gcm_api_key,
-        apns_api_key,
+        &apns_api_key,
         apns_team_id,
         apns_key_id,
         addr,

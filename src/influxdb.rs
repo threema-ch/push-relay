@@ -27,8 +27,8 @@ impl Influxdb {
     /// Create a new InfluxDB connection.
     pub fn new(
         connection_string: String,
-        user: String,
-        pass: String,
+        user: &str,
+        pass: &str,
         db: String,
     ) -> Result<Self, String> {
         // Initialize HTTP client

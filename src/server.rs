@@ -24,7 +24,7 @@ use push::{apns, gcm};
 /// Start the server and run infinitely.
 pub fn serve(
     gcm_api_key: &str,
-    apns_api_key: Vec<u8>,
+    apns_api_key: &[u8],
     apns_team_id: &str,
     apns_key_id: &str,
     listen_on: SocketAddr,
@@ -38,13 +38,13 @@ pub fn serve(
     // Create APNs clients
     let apns_client_prod = Arc::new(Mutex::new(apns::create_client(
         Endpoint::Production,
-        apns_api_key.as_slice(),
+        apns_api_key,
         apns_team_id,
         apns_key_id,
     )?));
     let apns_client_sbox = Arc::new(Mutex::new(apns::create_client(
         Endpoint::Sandbox,
-        apns_api_key.as_slice(),
+        apns_api_key,
         apns_team_id,
         apns_key_id,
     )?));
@@ -128,7 +128,7 @@ impl Service for PushHandler {
         }
 
         // Verify method
-        if req.method() != &Method::POST {
+        if req.method() != Method::POST {
             return Box::new(future::ok(
                 Response::builder()
                     .status(StatusCode::METHOD_NOT_ALLOWED)
@@ -265,7 +265,7 @@ impl Service for PushHandler {
                 info!("Sending push message to {} for session {} [v{}]", push_token.abbrev(), session_public_key, version);
                 let push_future = match push_token {
                     PushToken::Gcm(ref token) => gcm::send_push(
-                        gcm_api_key_clone,
+                        &gcm_api_key_clone,
                         token,
                         version,
                         wakeup_type,
