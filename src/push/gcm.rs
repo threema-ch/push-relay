@@ -11,7 +11,7 @@ use hyper_tls::HttpsConnector;
 use serde_json as json;
 
 use errors::SendPushError;
-use push::{GcmToken, ThreemaPayload, WakeupType};
+use push::{GcmToken, ThreemaPayload};
 use utils::SendFuture;
 
 #[cfg(test)]
@@ -68,12 +68,11 @@ pub fn send_push(
     api_key: &str,
     push_token: &GcmToken,
     version: u16,
-    wakeup_type: WakeupType,
     session: &str,
     priority: Priority,
     ttl: u32,
 ) -> SendFuture<(), SendPushError> {
-    let data = ThreemaPayload::new(session, version, wakeup_type.into());
+    let data = ThreemaPayload::new(session, version);
     let payload = Payload {
         to: &push_token.0,
         priority,

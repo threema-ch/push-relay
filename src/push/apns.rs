@@ -10,7 +10,7 @@ use a2::request::notification::{
 use futures::{future, Future};
 
 use errors::{PushRelayError, SendPushError};
-use push::{ApnsToken, ThreemaPayload, WakeupType};
+use push::{ApnsToken, ThreemaPayload};
 use utils::SendFuture;
 
 
@@ -38,7 +38,6 @@ pub fn send_push(
     push_token: &ApnsToken,
     bundle_id: &str,
     version: u16,
-    wakeup_type: WakeupType,
     session: &str,
     ttl: u64,
 ) -> SendFuture<(), SendPushError> {
@@ -54,7 +53,7 @@ pub fn send_push(
 
     // Notification payload
     let mut payload = SilentNotificationBuilder::new().build(&*push_token.0, options);
-    let data = ThreemaPayload::new(session, version, wakeup_type.into());
+    let data = ThreemaPayload::new(session, version);
     if let Err(e) = payload.add_custom_data(PAYLOAD_KEY, &data) {
         return Box::new(future::err(SendPushError::Other(format!(
             "Could not add custom data to APNs payload: {}",
