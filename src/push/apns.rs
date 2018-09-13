@@ -14,7 +14,7 @@ use push::{ApnsToken, ThreemaPayload, WakeupType};
 use utils::SendFuture;
 
 
-const PAYLOAD_KEY: &'static str = "3mw";
+const PAYLOAD_KEY: &str = "3mw";
 
 
 /// Create a new APNs client instance.

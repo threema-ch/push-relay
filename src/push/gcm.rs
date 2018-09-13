@@ -65,7 +65,7 @@ pub struct MessageResult {
 
 /// Send a GCM push notification.
 pub fn send_push(
-    api_key: String,
+    api_key: &str,
     push_token: &GcmToken,
     version: u16,
     wakeup_type: WakeupType,
