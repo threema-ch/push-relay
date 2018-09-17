@@ -309,7 +309,11 @@ impl Service for PushHandler {
                         warn!("Error: {}", e);
                         let body = "Push not successful";
                         future::ok(Response::builder()
-                            .status(StatusCode::INTERNAL_SERVER_ERROR)
+                            .status(if let SendPushError::ProcessingClientError(_) = e {
+                                StatusCode::BAD_REQUEST
+                            } else {
+                                StatusCode::INTERNAL_SERVER_ERROR
+                            })
                             .header(CONTENT_LENGTH, &*body.len().to_string())
                             .header(CONTENT_TYPE, "text/plain")
                             .body(Body::from(body))
