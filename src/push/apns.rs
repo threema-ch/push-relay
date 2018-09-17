@@ -4,9 +4,11 @@ use std::convert::Into;
 use std::io::Read;
 
 use a2::client::{Client, Endpoint};
+use a2::error::{Error as A2Error};
 use a2::request::notification::{
     NotificationBuilder, NotificationOptions, Priority, SilentNotificationBuilder,
 };
+use a2::response::ErrorReason;
 use futures::{future, Future};
 
 use errors::{PushRelayError, SendPushError};
@@ -67,7 +69,19 @@ pub fn send_push(
             .send(payload)
             .map(|response| debug!("Success details: {:?}", response))
             .map_err(|error| {
-                SendPushError::ProcessingError(format!("Push was unsuccessful: {}", error))
+                // Treat "bad device token" errors as client errors
+                if let A2Error::ResponseError(ref resp) = error {
+                    if let Some(ref body) = resp.error {
+                        if body.reason == ErrorReason::BadDeviceToken {
+                            return SendPushError::ProcessingClientError(
+                                format!("Push was unsuccessful: Bad device token")
+                            );
+                        }
+                    }
+                }
+
+                // Treat all other errors as server errors
+                SendPushError::ProcessingRemoteError(format!("Push was unsuccessful: {}", error))
             })
     )
 }

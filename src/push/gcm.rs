@@ -118,8 +118,8 @@ pub fn send_push(
         let body = response.into_body();
         match status {
             StatusCode::OK => sboxed!(body.concat2().map_err(body_read_error)),
-            StatusCode::BAD_REQUEST => sboxed!(future::err(SendPushError::ProcessingError("400 Bad Request".into()))),
-            StatusCode::UNAUTHORIZED => sboxed!(future::err(SendPushError::ProcessingError("Unauthorized. Is the API token correct?".into()))),
+            StatusCode::BAD_REQUEST => sboxed!(future::err(SendPushError::ProcessingRemoteError("400 Bad Request".into()))),
+            StatusCode::UNAUTHORIZED => sboxed!(future::err(SendPushError::ProcessingRemoteError("Unauthorized. Is the API token correct?".into()))),
             _ => sboxed!(
                 body.concat2().map_err(body_read_error).and_then(
                     |chunk| match from_utf8(&*chunk) {
@@ -151,7 +151,7 @@ pub fn send_push(
                 trace!("Success details: {:?}", data);
                 Ok(())
             },
-            _ => Err(SendPushError::ProcessingError(
+            _ => Err(SendPushError::ProcessingRemoteError(
                 "Success count in response is not 1".into(),
             )),
         }

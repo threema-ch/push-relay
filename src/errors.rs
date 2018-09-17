@@ -26,7 +26,10 @@ quick_error! {
         SendError(msg: String) {
             display("Push message could not be sent: {}", msg)
         }
-        ProcessingError(msg: String) {
+        ProcessingRemoteError(msg: String) {  // Caused by remote server. Retrying might help.
+            display("Push message could not be processed: {}", msg)
+        }
+        ProcessingClientError(msg: String) {  // Caused by client (e.g. bad push token). Retrying would probably not help.
             display("Push message could not be processed: {}", msg)
         }
         Other(msg: String) {
