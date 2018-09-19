@@ -115,7 +115,7 @@ impl Service for PushHandler {
     type Future = Box<Future<Item=Response<Self::ResBody>, Error=Self::Error> + Send>;
 
     fn call(&mut self, req: Request<Self::ResBody>) -> Self::Future {
-        info!("{} {}", req.method(), req.uri());
+        debug!("{} {}", req.method(), req.uri());
 
         // Verify path
         if req.uri().path() != "/push" {
