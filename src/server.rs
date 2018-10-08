@@ -312,7 +312,7 @@ impl Service for PushHandler {
                             .status(if let SendPushError::ProcessingClientError(_) = e {
                                 StatusCode::BAD_REQUEST
                             } else {
-                                StatusCode::INTERNAL_SERVER_ERROR
+                                StatusCode::BAD_GATEWAY
                             })
                             .header(CONTENT_LENGTH, &*body.len().to_string())
                             .header(CONTENT_TYPE, "text/plain")
