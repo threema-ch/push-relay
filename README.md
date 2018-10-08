@@ -30,8 +30,8 @@ Examples:
 Possible response codes:
 
 - `HTTP 204 (No Content)`: Request was processed successfully
-- `HTTP 400 (Bad Request)`: Invalid or missing POST parameters
-- `HTTP 500 (Internal Server Error)`: Processing of push request failed
+- `HTTP 400 (Bad Request)`: Invalid or missing POST parameters (including expired push tokens)
+- `HTTP 502 (Bad Gateway)`: Processing of push request failed
 
 ## Push Payload
 
