@@ -266,14 +266,14 @@ impl Service for PushHandler {
                     PushToken::Apns(ref token) => apns::send_push(
                         match endpoint.unwrap() {
                             Endpoint::Production => {
-                                trace!("Using production endpoint");
+                                debug!("Using production endpoint");
                                 match apns_client_prod_clone.lock() {
                                     Ok(guard) => guard,
                                     Err(_) => return server_error!("Could not lock apns_client_prod_clone mutex"),
                                 }
                             },
                             Endpoint::Sandbox => {
-                                trace!("Using sandbox endpoint");
+                                debug!("Using sandbox endpoint");
                                 match apns_client_sbox_clone.lock() {
                                     Ok(guard) => guard,
                                     Err(_) => return server_error!("Could not lock apns_client_sbox_clone mutex"),
