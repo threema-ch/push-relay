@@ -7,10 +7,10 @@ repository = "https://github.com/threema-ch/push-relay"
 
 [dependencies]
 a2 = "0.3"
-base64 = "0.9"
+base64 = "0.10"
 chrono = "0.4"
 clap = "2"
-env_logger = "0.5"
+env_logger = "0.6"
 futures = "0.1"
 hostname = "0.1"
 http = "0.1"
@@ -27,7 +27,7 @@ tokio-core = "0.1"
 url = "1.7.0"
 
 [dev-dependencies]
-mockito = "0.13"
+mockito = "0.14"
 argparse = "*"
 pretty_env_logger = "*"
 openssl = "*"
