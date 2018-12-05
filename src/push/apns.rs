@@ -51,7 +51,6 @@ pub fn send_push(
         apns_topic: Some(bundle_id),
         apns_collapse_id: None,
     };
-    trace!("Notification options: {:#?}", options);
 
     // Notification payload
     let mut payload = SilentNotificationBuilder::new().build(&*push_token.0, options);
@@ -72,6 +71,7 @@ pub fn send_push(
                 // Treat "bad device token" errors as client errors
                 if let A2Error::ResponseError(ref resp) = error {
                     if let Some(ref body) = resp.error {
+                        trace!("Response body: {:?}", body);
                         if body.reason == ErrorReason::BadDeviceToken {
                             return SendPushError::ProcessingClientError(
                                 format!("Push was unsuccessful: Bad device token")
