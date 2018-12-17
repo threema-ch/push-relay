@@ -37,7 +37,7 @@ pub enum Priority {
 
 /// GCM payload.
 ///
-/// See https://developers.google.com/cloud-messaging/http-server-ref
+/// See <https://developers.google.com/cloud-messaging/http-server-ref>
 #[derive(Debug, Serialize)]
 struct Payload<'a> {
     to: &'a str,
