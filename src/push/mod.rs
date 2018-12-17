@@ -2,6 +2,7 @@ pub mod apns;
 pub mod gcm;
 
 use chrono::Utc;
+use serde_derive::Serialize;
 
 
 /// A GCM token.

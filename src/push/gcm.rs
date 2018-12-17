@@ -8,6 +8,7 @@ use http::{Request, Response};
 use http::header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE};
 use hyper::{Body, Chunk, Client, StatusCode, Uri};
 use hyper_tls::HttpsConnector;
+use serde_derive::{Serialize, Deserialize};
 use serde_json as json;
 
 use crate::errors::SendPushError;

@@ -3,6 +3,7 @@ use std::fmt;
 
 use a2::error::Error as A2Error;
 use hyper::error::Error as HyperError;
+use quick_error::quick_error;
 
 quick_error! {
     #[derive(Debug)]
