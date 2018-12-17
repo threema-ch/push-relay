@@ -3,6 +3,11 @@
 //! This server accepts push requests via HTTPS and notifies the GCM push
 //! service.
 
+#![deny(clippy::all)]
+#![warn(clippy::pedantic)]
+#![allow(clippy::stutter)]
+#![allow(clippy::non_ascii_literal)]
+
 #[macro_use]
 extern crate log;
 
@@ -108,7 +113,7 @@ fn main() {
 
     // Determine InfluxDB config
     let influxdb = config.section(Some("influxdb".to_owned())).map(|c| {
-        influxdb::Influxdb::new(
+        influxdb::Influxdb::init(
             c.get("connection_string").unwrap_or_else(|| {
                 error!("Invalid config file: No 'connection_string' key in [influxdb] secttion in {}", configfile);
                 process::exit(3);

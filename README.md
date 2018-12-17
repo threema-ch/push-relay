@@ -95,13 +95,10 @@ To run tests:
 
 ## Linting
 
-Install rustfmt on your nightly toolchain:
+To run lints:
 
-    rustup component add rustfmt-preview --toolchain nightly
-
-Then reformat your code:
-
-    cargo +nightly fmt
+    $ rustup component add clippy
+    $ cargo clean && cargo clippy --all-targets
 
 ## License
 

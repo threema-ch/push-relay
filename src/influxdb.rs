@@ -25,7 +25,7 @@ pub struct Influxdb {
 
 impl Influxdb {
     /// Create a new InfluxDB connection.
-    pub fn new(
+    pub fn init(
         connection_string: String,
         user: &str,
         pass: &str,
@@ -43,9 +43,9 @@ impl Influxdb {
         let hostname = get_hostname().unwrap_or_else(|| "unknown".into());
 
         // Determine authorization header
-        let authorization = Influxdb::get_authorization_header(&user, &pass);
+        let authorization = Self::get_authorization_header(&user, &pass);
 
-        Ok(Influxdb {
+        Ok(Self {
             connection_string,
             authorization,
             db,

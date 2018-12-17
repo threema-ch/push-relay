@@ -74,7 +74,7 @@ pub fn send_push(
                         trace!("Response body: {:?}", body);
                         if body.reason == ErrorReason::BadDeviceToken {
                             return SendPushError::ProcessingClientError(
-                                format!("Push was unsuccessful: Bad device token")
+                                "Push was unsuccessful: Bad device token".to_string()
                             );
                         }
                     }

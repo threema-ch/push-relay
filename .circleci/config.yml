@@ -14,7 +14,8 @@ jobs:
             - v4-cargo-cache-{{ checksum "Cargo.lock" }}
             - v4-cargo-cache-{{ .Branch }}
             - v4-cargo-cache
-      - run: cargo build && cargo test
+      - run: cargo build
+      - run: cargo test
       - save_cache:
           key: v4-cargo-cache-{{ checksum "Cargo.lock" }}
           paths:
@@ -29,6 +30,20 @@ jobs:
           key: v4-cargo-cache
           paths:
             - target
+            - /usr/local/cargo
+  lint:
+    docker:
+      - image: rust:1.31
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-cargo-lint-cache
+      - run: rustup component add clippy
+      - run: cargo clippy --all-targets --all-features -- -D warnings
+      - save_cache:
+          key: v1-cargo-lint-cache
+          paths:
             - /usr/local/cargo
   audit:
     docker:
@@ -56,6 +71,7 @@ workflows:
   on_push:
     jobs:
       - test
+      - lint
       - audit
 
   # Build master every week on Monday at 04:00 am
@@ -69,4 +85,5 @@ workflows:
                 - master
     jobs:
       - test
+      - lint
       - audit

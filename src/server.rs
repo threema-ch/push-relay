@@ -50,27 +50,26 @@ pub fn serve(
     )?));
 
     // Check InfluxDB config
-    match influxdb {
-        Some(ref db) => {
-            debug!("Sending stats to InfluxDB");
-            fn log_started(core: &mut Core, db: &Influxdb) {
-                if let Err(e) = core.run(db.log_started()) {
-                    match e {
-                        InfluxdbError::DatabaseNotFound => {
-                            warn!("InfluxDB database does not yet exist. Create it...");
-                            match core.run(db.create_db()) {
-                                Ok(_) => log_started(core, db),
-                                Err(e) => error!("Could not create InfluxDB database: {}", e),
-                            }
-                        },
-                        other => error!("Could not log starting event to InfluxDB: {}", other),
-                    }
-                };
+    if let Some(ref db) = influxdb {
+        fn log_started(core: &mut Core, db: &Influxdb) {
+            if let Err(e) = core.run(db.log_started()) {
+                match e {
+                    InfluxdbError::DatabaseNotFound => {
+                        warn!("InfluxDB database does not yet exist. Create it...");
+                        match core.run(db.create_db()) {
+                            Ok(_) => log_started(core, db),
+                            Err(e) => error!("Could not create InfluxDB database: {}", e),
+                        }
+                    },
+                    other => error!("Could not log starting event to InfluxDB: {}", other),
+                }
             };
-            log_started(&mut core, db);
-        },
-        None => debug!("Not using InfluxDB logging"),
-    }
+        };
+        debug!("Sending stats to InfluxDB");
+        log_started(&mut core, db);
+    } else {
+        debug!("Not using InfluxDB logging");
+    };
 
     // Wrap Influxdb in an Arc
     let influxdb_arc = influxdb.map(Arc::new);
@@ -190,7 +189,9 @@ impl Service for PushHandler {
             .map_err(|e| ServiceError::new(e.to_string()))
 
             // Once the body is complete, process it
-            .and_then(move |body: Chunk| {
+            // Allow high cyclomatic complexity for now. The code should get
+            // simpler in the future with async / await.
+            .and_then(#[allow(clippy::cyclomatic_complexity)] move |body: Chunk| {
                 let parsed = form_urlencoded::parse(&body).collect::<Vec<_>>();
 
                 // Validate parameters
@@ -358,8 +359,7 @@ mod tests {
         let curve: Nid = Nid::SECP128R1;
         let group = EcGroup::from_curve_name(curve).unwrap();
         let key = EcKey::generate(&group).unwrap();
-        let pem = key.private_key_to_pem().unwrap();
-        pem
+        key.private_key_to_pem().unwrap()
     }
 
     fn get_handler() -> (Core, PushHandler) {
