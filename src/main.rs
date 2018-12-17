@@ -3,31 +3,12 @@
 //! This server accepts push requests via HTTPS and notifies the GCM push
 //! service.
 
-extern crate a2;
-extern crate base64;
-extern crate chrono;
-extern crate clap;
-extern crate env_logger;
-extern crate futures;
-extern crate hostname;
-extern crate http;
-extern crate hyper;
-extern crate hyper_tls;
-extern crate ini;
 #[macro_use]
 extern crate log;
-extern crate mime;
-#[macro_use]
-extern crate quick_error;
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-extern crate serde_json;
-extern crate tokio_core;
-extern crate url;
 
-#[cfg(test)]
-extern crate mockito;
+use base64;
+use env_logger;
+use serde_json;
 
 #[macro_use]
 mod utils;
@@ -47,7 +28,7 @@ use ini::Ini;
 const NAME: &str = "push-relay";
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const DESCRIPTION: &str =
-    "This server accepts push requests via HTTP and notifies the GCM push service.";
+    "This server accepts push requests via HTTP and notifies GCM/APNs push services.";
 
 fn main() {
     env_logger::init();

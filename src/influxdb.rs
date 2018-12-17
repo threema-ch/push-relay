@@ -11,7 +11,7 @@ use hyper::{Body, Client, StatusCode, Uri};
 use hyper::client::HttpConnector;
 use hyper_tls::HttpsConnector;
 
-use ::errors::InfluxdbError;
+use crate::errors::InfluxdbError;
 
 
 #[derive(Debug)]

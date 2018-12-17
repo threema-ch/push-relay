@@ -15,10 +15,10 @@ use hyper::service::Service;
 use tokio_core::reactor::Core;
 use url::form_urlencoded;
 
-use errors::{PushRelayError, SendPushError, ServiceError, InfluxdbError};
-use influxdb::Influxdb;
-use push::{ApnsToken, GcmToken, PushToken};
-use push::{apns, gcm};
+use crate::errors::{PushRelayError, SendPushError, ServiceError, InfluxdbError};
+use crate::influxdb::Influxdb;
+use crate::push::{ApnsToken, GcmToken, PushToken};
+use crate::push::{apns, gcm};
 
 
 /// Start the server and run infinitely.
@@ -112,7 +112,7 @@ impl Service for PushHandler {
     type Error = ServiceError;
 
     // The future representing the eventual response
-    type Future = Box<Future<Item=Response<Self::ResBody>, Error=Self::Error> + Send>;
+    type Future = Box<dyn Future<Item=Response<Self::ResBody>, Error=Self::Error> + Send>;
 
     fn call(&mut self, req: Request<Self::ResBody>) -> Self::Future {
         debug!("{} {}", req.method(), req.uri());
@@ -148,7 +148,7 @@ impl Service for PushHandler {
                         .header(CONTENT_LENGTH, &*$text.len().to_string())
                         .body(Body::from($text))
                         .unwrap()
-                )) as Box<Future<Item=_, Error=ServiceError> + Send>
+                )) as Box<dyn Future<Item=_, Error=ServiceError> + Send>
             }};
         }
 
@@ -336,9 +336,9 @@ impl Service for PushHandler {
 
 #[cfg(test)]
 mod tests {
-    extern crate hyper;
-    extern crate mockito;
-    extern crate openssl;
+    use hyper;
+    use mockito;
+    use openssl;
 
     use super::*;
 
