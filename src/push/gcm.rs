@@ -19,11 +19,11 @@ use crate::utils::SendFuture;
 use mockito::SERVER_URL;
 
 #[cfg(not(test))]
-static GCM_ENDPOINT: &'static str = "https://android.googleapis.com";
+static GCM_ENDPOINT: &'static str = "https://fcm.googleapis.com";
 
 #[cfg(test)]
 static GCM_ENDPOINT: &'static str = SERVER_URL;
-static GCM_PATH: &'static str = "/gcm/send";
+static GCM_PATH: &'static str = "/fcm/send";
 
 
 /// GCM push priority.

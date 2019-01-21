@@ -12,6 +12,10 @@ Possible log types:
 - `[security]` to invite users to upgrade in case of vulnerabilities.
 
 
+### Unreleased
+
+- [changed] Use new FCM API endpoint
+
 ### [v2.2.0][v2.2.0] (2018-12-17)
 
 - [changed] Switch to Rust 2018 edition
