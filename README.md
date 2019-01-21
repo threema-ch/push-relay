@@ -13,7 +13,7 @@ APNs push services.
 
 Request keys:
 
-- `type`: Either `gcm` or `apns`
+- `type`: Either `fcm` or `apns`
 - `token`: The device push token
 - `session`: SHA256 hash of public permanent key of the initiator
 - `version`: Threema Web protocol version
@@ -23,7 +23,7 @@ Request keys:
 Examples:
 
     curl -X POST -H "Origin: https://localhost" localhost:3000/push \
-        -d "type=gcm&token=asdf&session=123deadbeef&version=3"
+        -d "type=fcm&token=asdf&session=123deadbeef&version=3"
     curl -X POST -H "Origin: https://localhost" localhost:3000/push \
         -d "type=apns&token=asdf&session=123deadbeef&version=3&bundleid=com.example.app&endpoint=s"
 

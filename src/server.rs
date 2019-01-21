@@ -222,8 +222,8 @@ impl Service for PushHandler {
                 }
 
                 // Get parameters
-                let push_token = match find_or_default!("type", "gcm") {
-                    "gcm" => PushToken::Fcm(FcmToken(find_or_bad_request!("token").to_string())),
+                let push_token = match find_or_default!("type", "fcm") {
+                    "gcm" | "fcm" => PushToken::Fcm(FcmToken(find_or_bad_request!("token").to_string())),
                     "apns" => PushToken::Apns(ApnsToken(find_or_bad_request!("token").to_string())),
                     other => {
                         warn!("Got push request with invalid token type: {}", other);
@@ -536,7 +536,7 @@ mod tests {
 
         let req = Request::post("/push")
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .body("type=gcm&token=aassddff&session=deadbeef&version=1".into())
+            .body("type=fcm&token=aassddff&session=deadbeef&version=1".into())
             .unwrap();
         let resp = core.run(handler.call(req)).unwrap();
 
