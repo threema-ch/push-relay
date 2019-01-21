@@ -1,13 +1,13 @@
 pub mod apns;
-pub mod gcm;
+pub mod fcm;
 
 use chrono::Utc;
 use serde_derive::Serialize;
 
 
-/// A GCM token.
+/// A FCM token.
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct GcmToken(pub String);
+pub struct FcmToken(pub String);
 
 /// An APNs device token.
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -16,14 +16,14 @@ pub struct ApnsToken(pub String);
 /// The possible push token types.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum PushToken {
-    Gcm(GcmToken),
+    Fcm(FcmToken),
     Apns(ApnsToken),
 }
 
 impl PushToken {
     pub fn abbrev(&self) -> &'static str {
         match *self {
-            PushToken::Gcm(_) => "GCM",
+            PushToken::Fcm(_) => "FCM",
             PushToken::Apns(_) => "APNs",
         }
     }

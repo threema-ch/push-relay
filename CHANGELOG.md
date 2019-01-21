@@ -14,6 +14,7 @@ Possible log types:
 
 ### Unreleased
 
+- [changed] Rename `[gcm]` section in config.ini to `[fcm]`
 - [changed] Use new FCM API endpoint
 
 ### [v2.2.0][v2.2.0] (2018-12-17)

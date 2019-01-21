@@ -1,4 +1,4 @@
-//! Code related to the sending of GCM push notifications.
+//! Code related to the sending of FCM push notifications.
 
 use std::str::{FromStr, from_utf8};
 
@@ -12,21 +12,21 @@ use serde_derive::{Serialize, Deserialize};
 use serde_json as json;
 
 use crate::errors::SendPushError;
-use crate::push::{GcmToken, ThreemaPayload};
+use crate::push::{FcmToken, ThreemaPayload};
 use crate::utils::SendFuture;
 
 #[cfg(test)]
 use mockito::SERVER_URL;
 
 #[cfg(not(test))]
-static GCM_ENDPOINT: &'static str = "https://fcm.googleapis.com";
+static FCM_ENDPOINT: &'static str = "https://fcm.googleapis.com";
 
 #[cfg(test)]
-static GCM_ENDPOINT: &'static str = SERVER_URL;
-static GCM_PATH: &'static str = "/fcm/send";
+static FCM_ENDPOINT: &'static str = SERVER_URL;
+static FCM_PATH: &'static str = "/fcm/send";
 
 
-/// GCM push priority.
+/// FCM push priority.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
 #[allow(dead_code)]
@@ -35,7 +35,7 @@ pub enum Priority {
     Normal,
 }
 
-/// GCM payload.
+/// FCM payload.
 ///
 /// See <https://developers.google.com/cloud-messaging/http-server-ref>
 #[derive(Debug, Serialize)]
@@ -46,7 +46,7 @@ struct Payload<'a> {
     data: ThreemaPayload<'a>,
 }
 
-/// GCM push response.
+/// FCM push response.
 #[derive(Debug, Deserialize)]
 pub struct MessageResponse {
     pub multicast_id: i64,
@@ -56,7 +56,7 @@ pub struct MessageResponse {
     pub results: Option<Vec<MessageResult>>,
 }
 
-/// GCM push result, sent inside the push response.
+/// FCM push result, sent inside the push response.
 #[derive(Debug, Deserialize)]
 pub struct MessageResult {
     pub message_id: String,
@@ -64,10 +64,10 @@ pub struct MessageResult {
     pub error: Option<String>,
 }
 
-/// Send a GCM push notification.
+/// Send a FCM push notification.
 pub fn send_push(
     api_key: &str,
-    push_token: &GcmToken,
+    push_token: &FcmToken,
     version: u16,
     session: &str,
     priority: Priority,
@@ -101,7 +101,7 @@ pub fn send_push(
     // Build response future
     let response_future = client
         .request(
-            Request::post(Uri::from_str(&(GCM_ENDPOINT.to_string() + GCM_PATH)).unwrap())
+            Request::post(Uri::from_str(&(FCM_ENDPOINT.to_string() + FCM_PATH)).unwrap())
                 .header(AUTHORIZATION, &*format!("key={}", api_key))
                 .header(CONTENT_TYPE, "application/json")
                 .header(CONTENT_LENGTH, &*payload_string.len().to_string())
@@ -110,7 +110,7 @@ pub fn send_push(
         )
         .map_err(|e| SendPushError::SendError(e.to_string()));
 
-    let body_read_error = |e| SendPushError::Other(format!("Could not read GCM response body: {}", e));
+    let body_read_error = |e| SendPushError::Other(format!("Could not read FCM response body: {}", e));
 
     // Process response
     let chunk_future = response_future.and_then(move |response: Response<Body>| {
