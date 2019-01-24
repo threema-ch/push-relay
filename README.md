@@ -1,9 +1,9 @@
-# GCM/APNs Push Relay
+# FCM/APNs Push Relay
 
 [![CircleCI][circle-ci-badge]][circle-ci]
 [![License][license-badge]][license]
 
-This server accepts push requests via HTTP and notifies the Google GCM / Apple
+This server accepts push requests via HTTP and notifies the Google FCM / Apple
 APNs push services.
 
 ## Request Format
@@ -13,7 +13,7 @@ APNs push services.
 
 Request keys:
 
-- `type`: Either `gcm` or `apns`
+- `type`: Either `fcm` or `apns`
 - `token`: The device push token
 - `session`: SHA256 hash of public permanent key of the initiator
 - `version`: Threema Web protocol version
@@ -23,7 +23,7 @@ Request keys:
 Examples:
 
     curl -X POST -H "Origin: https://localhost" localhost:3000/push \
-        -d "type=gcm&token=asdf&session=123deadbeef&version=3"
+        -d "type=fcm&token=asdf&session=123deadbeef&version=3"
     curl -X POST -H "Origin: https://localhost" localhost:3000/push \
         -d "type=apns&token=asdf&session=123deadbeef&version=3&bundleid=com.example.app&endpoint=s"
 
@@ -42,9 +42,9 @@ The payload format looks like this:
 - `wct`: Unix epoch timestamp of the request in seconds, `i64`
 - `wcv`: Protocol version, `u16`
 
-### GCM
+### FCM
 
-The GCM message contains the payload data as specified above.
+The FCM message contains the payload data as specified above.
 
 The TTL of the message is currently hardcoded to 90 seconds.
 
@@ -58,7 +58,7 @@ above.
 You need the Rust compiler (1.31 or higher). First, create a `config.ini` file
 that looks like this:
 
-    [gcm]
+    [fcm]
     api_key = "your-api-key"
 
     [apns]

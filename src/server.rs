@@ -17,13 +17,13 @@ use url::form_urlencoded;
 
 use crate::errors::{PushRelayError, SendPushError, ServiceError, InfluxdbError};
 use crate::influxdb::Influxdb;
-use crate::push::{ApnsToken, GcmToken, PushToken};
-use crate::push::{apns, gcm};
+use crate::push::{ApnsToken, FcmToken, PushToken};
+use crate::push::{apns, fcm};
 
 
 /// Start the server and run infinitely.
 pub fn serve(
-    gcm_api_key: &str,
+    fcm_api_key: &str,
     apns_api_key: &[u8],
     apns_team_id: &str,
     apns_key_id: &str,
@@ -75,11 +75,11 @@ pub fn serve(
     let influxdb_arc = influxdb.map(Arc::new);
 
     // Service function
-    let gcm_api_key_owned = gcm_api_key.to_string();
+    let fcm_api_key_owned = fcm_api_key.to_string();
     let new_service = move || {
         let future: FutureResult<PushHandler, ServiceError> = future::ok(
             PushHandler {
-                gcm_api_key: gcm_api_key_owned.clone(),
+                fcm_api_key: fcm_api_key_owned.clone(),
                 apns_client_prod: apns_client_prod.clone(),
                 apns_client_sbox: apns_client_sbox.clone(),
                 influxdb: influxdb_arc.clone(),
@@ -98,7 +98,7 @@ pub fn serve(
 
 /// The server endpoint that accepts incoming push requests.
 pub struct PushHandler {
-    gcm_api_key: String,
+    fcm_api_key: String,
     apns_client_prod: Arc<Mutex<ApnsClient>>,
     apns_client_sbox: Arc<Mutex<ApnsClient>>,
     influxdb: Option<Arc<Influxdb>>,
@@ -176,7 +176,7 @@ impl Service for PushHandler {
 
         // Parse request body
         let body = req.into_body();
-        let gcm_api_key_clone = self.gcm_api_key.clone();
+        let fcm_api_key_clone = self.fcm_api_key.clone();
         let apns_client_prod_clone = self.apns_client_prod.clone();
         let apns_client_sbox_clone = self.apns_client_sbox.clone();
         let influxdb_clone = self.influxdb.clone();
@@ -222,8 +222,8 @@ impl Service for PushHandler {
                 }
 
                 // Get parameters
-                let push_token = match find_or_default!("type", "gcm") {
-                    "gcm" => PushToken::Gcm(GcmToken(find_or_bad_request!("token").to_string())),
+                let push_token = match find_or_default!("type", "fcm") {
+                    "gcm" | "fcm" => PushToken::Fcm(FcmToken(find_or_bad_request!("token").to_string())),
                     "apns" => PushToken::Apns(ApnsToken(find_or_bad_request!("token").to_string())),
                     other => {
                         warn!("Got push request with invalid token type: {}", other);
@@ -256,12 +256,12 @@ impl Service for PushHandler {
                 // Send push notification
                 info!("Sending push message to {} for session {} [v{}]", push_token.abbrev(), session_public_key, version);
                 let push_future = match push_token {
-                    PushToken::Gcm(ref token) => gcm::send_push(
-                        &gcm_api_key_clone,
+                    PushToken::Fcm(ref token) => fcm::send_push(
+                        &fcm_api_key_clone,
                         token,
                         version,
                         &session_public_key,
-                        gcm::Priority::High,
+                        fcm::Priority::High,
                         90,
                     ),
                     PushToken::Apns(ref token) => apns::send_push(
@@ -378,7 +378,7 @@ mod tests {
             "key_id",
         ).unwrap();
         let handler = PushHandler {
-            gcm_api_key: "aassddff".into(),
+            fcm_api_key: "aassddff".into(),
             apns_client_prod: Arc::new(Mutex::new(apns_client_prod)),
             apns_client_sbox: Arc::new(Mutex::new(apns_client_sbox)),
             influxdb: None,
@@ -519,7 +519,7 @@ mod tests {
 
     #[test]
     fn test_ok() {
-        let _m = mock("POST", "/gcm/send")
+        let _m = mock("POST", "/fcm/send")
             .with_status(200)
             .with_body(
                 r#"{
@@ -536,7 +536,7 @@ mod tests {
 
         let req = Request::post("/push")
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .body("type=gcm&token=aassddff&session=deadbeef&version=1".into())
+            .body("type=fcm&token=aassddff&session=deadbeef&version=1".into())
             .unwrap();
         let resp = core.run(handler.call(req)).unwrap();
 

@@ -1,6 +1,6 @@
-//! # GCM/APNs Push Relay
+//! # FCM/APNs Push Relay
 //!
-//! This server accepts push requests via HTTPS and notifies the GCM push
+//! This server accepts push requests via HTTPS and notifies the FCM push
 //! service.
 
 #![deny(clippy::all)]
@@ -11,9 +11,7 @@
 #[macro_use]
 extern crate log;
 
-use base64;
 use env_logger;
-use serde_json;
 
 #[macro_use]
 mod utils;
@@ -33,7 +31,7 @@ use ini::Ini;
 const NAME: &str = "push-relay";
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const DESCRIPTION: &str =
-    "This server accepts push requests via HTTP and notifies GCM/APNs push services.";
+    "This server accepts push requests via HTTP and notifies FCM/APNs push services.";
 
 fn main() {
     env_logger::init();
@@ -71,14 +69,14 @@ fn main() {
         process::exit(1);
     });
 
-    // Determine GCM API key
-    let config_gcm = config.section(Some("gcm".to_owned())).unwrap_or_else(|| {
-        error!("Invalid config file: No [gcm] section in {}", configfile);
+    // Determine FCM API key
+    let config_fcm = config.section(Some("fcm".to_owned())).unwrap_or_else(|| {
+        error!("Invalid config file: No [fcm] section in {}", configfile);
         process::exit(2);
     });
-    let gcm_api_key = config_gcm.get("api_key").unwrap_or_else(|| {
+    let fcm_api_key = config_fcm.get("api_key").unwrap_or_else(|| {
         error!(
-            "Invalid config file: No 'api_key' key in [gcm] section in {}",
+            "Invalid config file: No 'api_key' key in [fcm] section in {}",
             configfile
         );
         process::exit(2);
@@ -154,7 +152,7 @@ fn main() {
 
     info!("Starting Push Relay Server {} on {}", VERSION, &addr);
     server::serve(
-        gcm_api_key,
+        fcm_api_key,
         &apns_api_key,
         apns_team_id,
         apns_key_id,
