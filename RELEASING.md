@@ -5,9 +5,13 @@ Set variables:
     $ export VERSION=X.Y.Z
     $ export GPG_KEY=E7ADD9914E260E8B35DFB50665FDE935573ACDA6
 
+Update changelog:
+
+    $ vim CHANGELOG.md
+
 Update version numbers:
 
-    $ vim -p Cargo.toml
+    $ vim Cargo.toml
     $ cargo update
 
 Commit & tag:
