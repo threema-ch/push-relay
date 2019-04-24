@@ -7,6 +7,7 @@
 #![warn(clippy::pedantic)]
 #![allow(clippy::stutter)]
 #![allow(clippy::non_ascii_literal)]
+#![allow(clippy::match_same_arms)]
 
 #[macro_use]
 extern crate log;
