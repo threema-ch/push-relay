@@ -19,6 +19,7 @@ Request keys:
 - `version`: Threema Web protocol version
 - `bundleid` (APNs only): The bundle id to use
 - `endpoint` (APNs only): Either `p` (production) or `s` (sandbox)
+- `ttl` (FCM only, optional): The lifespan of a push message, defaults to 90 seconds
 
 Examples:
 
@@ -46,8 +47,6 @@ The payload format looks like this:
 ### FCM
 
 The FCM message contains the payload data as specified above.
-
-The TTL of the message is currently hardcoded to 90 seconds.
 
 ### APNs
 
