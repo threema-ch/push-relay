@@ -200,11 +200,19 @@ impl Service for PushHandler {
                 }
 
                 /// Iterate over parameters and find first matching key.
+                /// Return an optional.
+                macro_rules! find {
+                    ($name:expr) => {
+                        parsed.iter().find(|&&(ref k, _)| k == $name).map(|&(_, ref v)| v)
+                    }
+                }
+
+                /// Iterate over parameters and find first matching key.
                 /// If the key is not found, then return a HTTP 400 response.
                 macro_rules! find_or_bad_request {
                     ($name:expr) => {
-                        match parsed.iter().find(|&&(ref k, _)| k == $name) {
-                            Some(&(_, ref v)) => v,
+                        match find!($name) {
+                            Some(v) => v,
                             None => return bad_request!("Invalid or missing parameters"),
                         }
                     }
@@ -214,8 +222,8 @@ impl Service for PushHandler {
                 /// If the key is not found, return a default.
                 macro_rules! find_or_default {
                     ($name:expr, $default:expr) => {
-                        match parsed.iter().find(|&&(ref k, _)| k == $name) {
-                            Some(&(_, ref v)) => v,
+                        match find!($name) {
+                            Some(v) => v,
                             None => $default,
                         }
                     }
@@ -252,6 +260,13 @@ impl Service for PushHandler {
                     },
                     _ => (None, None),
                 };
+                let ttl: Option<u32> = match push_token {
+                    PushToken::Fcm(_) => match find!("ttl") {
+                        Some(ttl_str) => ttl_str.trim().parse().ok(),
+                        None => Some(90),
+                    },
+                    _ => None,
+                };
 
                 // Send push notification
                 info!("Sending push message to {} for session {} [v{}]", push_token.abbrev(), session_public_key, version);
@@ -262,7 +277,7 @@ impl Service for PushHandler {
                         version,
                         &session_public_key,
                         fcm::Priority::High,
-                        90,
+                        ttl.expect("ttl is None"),
                     ),
                     PushToken::Apns(ref token) => apns::send_push(
                         match endpoint.unwrap() {
