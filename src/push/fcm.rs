@@ -59,7 +59,7 @@ pub struct MessageResponse {
 /// FCM push result, sent inside the push response.
 #[derive(Debug, Deserialize)]
 pub struct MessageResult {
-    pub message_id: String,
+    pub message_id: Option<String>,
     pub registration_id: Option<String>,
     pub error: Option<String>,
 }
@@ -140,21 +140,45 @@ pub fn send_push(
         })?;
 
         // Parse JSON
-        let data = json::from_str::<MessageResponse>(json_body).map_err(|e| {
+        let data: MessageResponse = json::from_str(json_body).map_err(|e| {
             SendPushError::Other(format!(
                 "Could not decode response JSON: `{}` (Reason: {})",
                 json_body, e
             ))
         })?;
 
-        match data.success {
-            1 => {
+        match (data.success, data.failure) {
+            (1, 0) => {
                 trace!("Success details: {:?}", data);
                 Ok(())
-            },
-            _ => Err(SendPushError::ProcessingRemoteError(
-                "Success count in response is not 1".into(),
-            )),
+            }
+            (0, 1) => {
+                warn!("Response: {:?}", data);
+                let msg: Option<String> = data.results
+                    .and_then(|results| results.first().and_then(|result| result.error.clone()));
+                Err(match msg.as_ref().map(String::as_str) {
+                    // https://firebase.google.com/docs/cloud-messaging/http-server-ref#error-codes
+                    Some("MissingRegistration") => SendPushError::ProcessingClientError("Push was unsuccessful: Missing push token".into()),
+                    Some("InvalidRegistration") => SendPushError::ProcessingClientError("Push was unsuccessful: Invalid push token".into()),
+                    Some("NotRegistered") => SendPushError::ProcessingClientError("Push was unsuccessful: Unregistered device".into()),
+                    Some("InvalidPackageName") => SendPushError::ProcessingClientError("Push was unsuccessful: Push token does not match target app".into()),
+                    Some("MismatchSenderId") => SendPushError::ProcessingClientError("Push was unsuccessful: Mismatched sender ID".into()),
+                    Some("MessageTooBig") => SendPushError::ProcessingClientError("Push was unsuccessful: Message too big".into()),
+                    Some("InvalidDataKey") => SendPushError::ProcessingClientError("Push was unsuccessful: Invalid data key".into()),
+                    Some("Unavailable") => SendPushError::ProcessingRemoteError("Push was unsuccessful: Timeout".into()),
+                    Some("InternalServerError") => SendPushError::ProcessingRemoteError("Push was unsuccessful: Internal server error".into()),
+                    Some("DeviceMessageRateExceeded") => SendPushError::ProcessingRemoteError("Push was unsuccessful: Device message rate exceeded".into()),
+                    Some(other) => SendPushError::Other(format!("Push was unsuccessful: {}", other)),
+                    None => SendPushError::Other("Push was unsuccessful".into()),
+                })
+            }
+            (success, failure) => {
+                warn!("Response: {:?}", data);
+                Err(SendPushError::ProcessingRemoteError(format!(
+                    "Unexpected payload: {} success {} failure responses",
+                    success, failure
+                )))
+            }
         }
     }))
 }

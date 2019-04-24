@@ -316,10 +316,11 @@ impl Service for PushHandler {
                         warn!("Error: {}", e);
                         let body = "Push not successful";
                         future::ok(Response::builder()
-                            .status(if let SendPushError::ProcessingClientError(_) = e {
-                                StatusCode::BAD_REQUEST
-                            } else {
-                                StatusCode::BAD_GATEWAY
+                            .status(match e {
+                                SendPushError::SendError(_) => StatusCode::BAD_GATEWAY,
+                                SendPushError::ProcessingClientError(_) => StatusCode::BAD_REQUEST,
+                                SendPushError::ProcessingRemoteError(_) => StatusCode::BAD_GATEWAY,
+                                SendPushError::Other(_) => StatusCode::INTERNAL_SERVER_ERROR,
                             })
                             .header(CONTENT_LENGTH, &*body.len().to_string())
                             .header(CONTENT_TYPE, "text/plain")
@@ -518,7 +519,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ok() {
+    fn test_fcm_ok() {
         let _m = mock("POST", "/fcm/send")
             .with_status(200)
             .with_body(
@@ -545,5 +546,57 @@ mod tests {
             resp.headers().get(CONTENT_TYPE).unwrap().to_str().unwrap(),
             "text/plain",
         );
+    }
+
+    fn test_fcm_process_error(msg: &str, status_code: StatusCode) {
+        let _m = mock("POST", "/fcm/send")
+            .with_status(200)
+            .with_body(format!(
+                r#"{{
+                    "multicast_id": 1,
+                    "success": 0,
+                    "failure": 1,
+                    "canonical_ids": 0,
+                    "results": [{{"error": "{}"}}]
+                }}"#,
+                msg,
+            ))
+            .create();
+
+        let (mut core, mut handler) = get_handler();
+
+        let req = Request::post("/push")
+            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .body("type=fcm&token=aassddff&session=deadbeef&version=1".into())
+            .unwrap();
+        let resp = core.run(handler.call(req)).unwrap();
+
+        assert_eq!(resp.status(), status_code);
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap().to_str().unwrap(),
+            "text/plain",
+        );
+        let body = get_body(&mut core, resp.into_body());
+        assert_eq!(&body, "Push not successful");
+    }
+
+    #[test]
+    fn test_fcm_not_registered() {
+        test_fcm_process_error("NotRegistered", StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn test_fcm_missing_registration() {
+        test_fcm_process_error("MissingRegistration", StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn test_fcm_internal_server_error() {
+        test_fcm_process_error("InternalServerError", StatusCode::BAD_GATEWAY);
+    }
+
+    #[test]
+    fn test_fcm_unknown_error() {
+        test_fcm_process_error("YourBicycleWasStolen", StatusCode::INTERNAL_SERVER_ERROR);
     }
 }
