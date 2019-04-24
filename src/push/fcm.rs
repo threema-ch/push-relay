@@ -41,6 +41,8 @@ pub enum Priority {
 #[derive(Debug, Serialize)]
 struct Payload<'a> {
     to: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    collapse_key: Option<&'a str>,
     priority: Priority,
     time_to_live: u32,
     data: ThreemaPayload<'a>,
@@ -70,12 +72,14 @@ pub fn send_push(
     push_token: &FcmToken,
     version: u16,
     session: &str,
+    collapse_key: Option<&str>,
     priority: Priority,
     ttl: u32,
 ) -> SendFuture<(), SendPushError> {
     let data = ThreemaPayload::new(session, version);
     let payload = Payload {
         to: &push_token.0,
+        collapse_key,
         priority,
         time_to_live: ttl,
         data,

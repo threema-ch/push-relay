@@ -20,6 +20,8 @@ Request keys:
 - `bundleid` (APNs only): The bundle id to use
 - `endpoint` (APNs only): Either `p` (production) or `s` (sandbox)
 - `ttl` (FCM only, optional): The lifespan of a push message, defaults to 90 seconds
+- `collapse_key`: (FCM only, optional) A parameter identifying a group of push messages that can be
+  collapsed.
 
 Examples:
 
