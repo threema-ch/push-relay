@@ -5,7 +5,7 @@
 
 #![deny(clippy::all)]
 #![warn(clippy::pedantic)]
-#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::stutter)]
 #![allow(clippy::non_ascii_literal)]
 #![allow(clippy::match_same_arms)]
 
