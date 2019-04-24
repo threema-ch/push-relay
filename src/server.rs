@@ -21,6 +21,7 @@ use crate::push::{ApnsToken, FcmToken, PushToken};
 use crate::push::{apns, fcm};
 
 static COLLAPSE_KEY_PREFIX: &'static str = "relay";
+static TTL_DEFAULT: u32 = 90;
 
 
 /// Start the server and run infinitely.
@@ -265,10 +266,8 @@ impl Service for PushHandler {
                 let (collapse_key, ttl) = match push_token {
                     PushToken::Fcm(_) => {
                         let collapse_key = find!("collapse_key").map(|key| format!("{}.{}", COLLAPSE_KEY_PREFIX, key));
-                        let ttl: Option<u32> = match find!("ttl") {
-                            Some(ttl_str) => ttl_str.trim().parse().ok(),
-                            None => Some(90),
-                        };
+                        let ttl: Option<u32> = find!("ttl")
+                            .and_then(|ttl_str| ttl_str.trim().parse().ok());
                         (collapse_key, ttl)
                     },
                     _ => (None, None),
@@ -284,7 +283,7 @@ impl Service for PushHandler {
                         &session_public_key,
                         collapse_key.as_ref().map(String::as_str),
                         fcm::Priority::High,
-                        ttl.expect("ttl is None"),
+                        ttl.unwrap_or(TTL_DEFAULT),
                     ),
                     PushToken::Apns(ref token) => apns::send_push(
                         match endpoint.unwrap() {
