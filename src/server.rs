@@ -20,6 +20,8 @@ use crate::influxdb::Influxdb;
 use crate::push::{ApnsToken, FcmToken, PushToken};
 use crate::push::{apns, fcm};
 
+static COLLAPSE_KEY_PREFIX: &'static str = "relay";
+
 
 /// Start the server and run infinitely.
 pub fn serve(
@@ -260,12 +262,16 @@ impl Service for PushHandler {
                     },
                     _ => (None, None),
                 };
-                let ttl: Option<u32> = match push_token {
-                    PushToken::Fcm(_) => match find!("ttl") {
-                        Some(ttl_str) => ttl_str.trim().parse().ok(),
-                        None => Some(90),
+                let (collapse_key, ttl) = match push_token {
+                    PushToken::Fcm(_) => {
+                        let collapse_key = find!("collapse_key").map(|key| format!("{}.{}", COLLAPSE_KEY_PREFIX, key));
+                        let ttl: Option<u32> = match find!("ttl") {
+                            Some(ttl_str) => ttl_str.trim().parse().ok(),
+                            None => Some(90),
+                        };
+                        (collapse_key, ttl)
                     },
-                    _ => None,
+                    _ => (None, None),
                 };
 
                 // Send push notification
@@ -276,6 +282,7 @@ impl Service for PushHandler {
                         token,
                         version,
                         &session_public_key,
+                        collapse_key.as_ref().map(String::as_str),
                         fcm::Priority::High,
                         ttl.expect("ttl is None"),
                     ),
