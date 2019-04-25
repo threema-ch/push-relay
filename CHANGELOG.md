@@ -36,6 +36,6 @@ Possible log types:
 - [changed] Apply clippy lint feedback
 
 
-[v2.2.0]: https://github.com/dbrgn/tealdeer/compare/v2.1.1...v2.2.0
-[v3.0.0]: https://github.com/dbrgn/tealdeer/compare/v2.2.0...v3.0.0
-[v3.1.0]: https://github.com/dbrgn/tealdeer/compare/v3.0.0...v3.1.0
+[v2.2.0]: https://github.com/threema-ch/push-relay/compare/v2.1.1...v2.2.0
+[v3.0.0]: https://github.com/threema-ch/push-relay/compare/v2.2.0...v3.0.0
+[v3.1.0]: https://github.com/threema-ch/push-relay/compare/v3.0.0...v3.1.0
