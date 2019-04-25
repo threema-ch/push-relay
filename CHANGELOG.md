@@ -12,6 +12,13 @@ Possible log types:
 - `[security]` to invite users to upgrade in case of vulnerabilities.
 
 
+### [v3.1.0][v3.1.0] (2019-04-25)
+
+- [added] Allow clients to override the FCM TTL (#19)
+- [added] Allow clients to override the FCM collapse key (#20)
+- [changed] Improve handling of FCM push errors (#18)
+
+
 ### [v3.0.0][v3.0.0] (2019-01-24)
 
 - [changed] Use new FCM API endpoint
@@ -31,3 +38,4 @@ Possible log types:
 
 [v2.2.0]: https://github.com/dbrgn/tealdeer/compare/v2.1.1...v2.2.0
 [v3.0.0]: https://github.com/dbrgn/tealdeer/compare/v2.2.0...v3.0.0
+[v3.1.0]: https://github.com/dbrgn/tealdeer/compare/v3.0.0...v3.1.0
