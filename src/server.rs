@@ -265,9 +265,18 @@ impl Service for PushHandler {
                 };
                 let (collapse_key, ttl) = match push_token {
                     PushToken::Fcm(_) => {
-                        let collapse_key = find!("collapse_key").map(|key| format!("{}.{}", COLLAPSE_KEY_PREFIX, key));
-                        let ttl: Option<u32> = find!("ttl")
-                            .and_then(|ttl_str| ttl_str.trim().parse().ok());
+                        let collapse_key = find!("collapse_key")
+                            .map(|key| format!("{}.{}", COLLAPSE_KEY_PREFIX, key));
+                        let parsed_ttl = find!("ttl")
+                            .map(|ttl_str| ttl_str.trim().parse());
+                        let ttl: Option<u32> = match parsed_ttl {
+                            // Parsing as u32 succeeded
+                            Some(Ok(val)) => Some(val),
+                            // Parsing as u32 failed
+                            Some(Err(_)) => return bad_request!("Invalid or missing parameters"),
+                            // No TTL value was specified
+                            None => None,
+                        };
                         (collapse_key, ttl)
                     },
                     _ => (None, None),
@@ -531,6 +540,22 @@ mod tests {
         let req = Request::post("/push")
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
             .body("type=abc&token=aassddff&session=deadbeef&version=1".into())
+            .unwrap();
+        let resp = core.run(handler.call(req)).unwrap();
+
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body = get_body(&mut core, resp.into_body());
+        assert_eq!(&body, "Invalid or missing parameters");
+    }
+
+    /// A request with invalid TTL parameter should result in a HTTP 400 response.
+    #[test]
+    fn test_invalid_ttl() {
+        let (mut core, mut handler) = get_handler();
+
+        let req = Request::post("/push")
+            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .body("type=fcm&token=aassddff&session=deadbeef&version=1&ttl=9999999999999999".into())
             .unwrap();
         let resp = core.run(handler.call(req)).unwrap();
 
