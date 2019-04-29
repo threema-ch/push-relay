@@ -2,6 +2,7 @@
 //!
 use std::convert::Into;
 use std::io::Read;
+use std::time::Duration;
 
 use a2::CollapseId;
 use a2::client::{Client, Endpoint};
@@ -43,12 +44,12 @@ pub fn send_push(
     version: u16,
     session: &str,
     collapse_id: Option<CollapseId>,
-    ttl: u32,
+    ttl_timestamp: Option<Duration>,
 ) -> SendFuture<(), SendPushError> {
     // Notification options
     let options = NotificationOptions {
         apns_id: None,
-        apns_expiration: Some(u64::from(ttl)),
+        apns_expiration: ttl_timestamp.map(|timestamp| timestamp.as_secs()),
         apns_priority: Priority::High,
         apns_topic: Some(bundle_id),
         apns_collapse_id: collapse_id,

@@ -2,6 +2,7 @@ use std::convert::Into;
 use std::net::SocketAddr;
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, SystemTime};
 
 use a2::CollapseId;
 use a2::client::{Client as ApnsClient, Endpoint};
@@ -261,6 +262,11 @@ impl Service for PushHandler {
                     // No TTL value was specified
                     None => TTL_DEFAULT,
                 };
+                // Note: This will swallow any errors when converting to a timestamp
+                let ttl_timestamp: Option<Duration> = SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .ok()
+                    .and_then(|now| now.checked_add(Duration::from_secs(u64::from(ttl))));
                 let collapse_key: Option<String> = find!("collapse_key")
                     .map(|key| format!("{}.{}", COLLAPSE_KEY_PREFIX, key));
                 let (bundle_id, endpoint, collapse_id) = match push_token {
@@ -316,7 +322,7 @@ impl Service for PushHandler {
                         version,
                         &session_public_key,
                         collapse_id,
-                        ttl,
+                        ttl_timestamp,
                     ),
                 };
 
