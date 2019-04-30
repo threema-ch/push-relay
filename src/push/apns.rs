@@ -49,7 +49,7 @@ pub fn send_push(
     // Note: This will swallow any errors when converting to a timestamp
     let expiration: Option<u64> = match ttl {
         0 => Some(0),
-        _ => {
+        ttl => {
             let now = SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .expect("Could not retrieve UNIX timestamp");
