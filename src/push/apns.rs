@@ -3,6 +3,7 @@
 use std::convert::Into;
 use std::io::Read;
 
+use a2::CollapseId;
 use a2::client::{Client, Endpoint};
 use a2::error::{Error as A2Error};
 use a2::request::notification::{
@@ -41,15 +42,16 @@ pub fn send_push(
     bundle_id: &str,
     version: u16,
     session: &str,
-    ttl: u64,
+    collapse_id: Option<CollapseId>,
+    ttl: u32,
 ) -> SendFuture<(), SendPushError> {
     // Notification options
     let options = NotificationOptions {
         apns_id: None,
-        apns_expiration: Some(ttl),
+        apns_expiration: Some(u64::from(ttl)),
         apns_priority: Priority::High,
         apns_topic: Some(bundle_id),
-        apns_collapse_id: None,
+        apns_collapse_id: collapse_id,
     };
 
     // Notification payload

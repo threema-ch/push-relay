@@ -3,6 +3,7 @@ use std::net::SocketAddr;
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 
+use a2::CollapseId;
 use a2::client::{Client as ApnsClient, Endpoint};
 use futures::Stream;
 use futures::future::{self, Future, FutureResult};
@@ -250,7 +251,19 @@ impl Service for PushHandler {
                         return bad_request!("Invalid or missing parameters");
                     },
                 };
-                let (bundle_id, endpoint) = match push_token {
+                let ttl_string = find!("ttl")
+                    .map(|ttl_str| ttl_str.trim().parse());
+                let ttl: u32 = match ttl_string {
+                    // Parsing as u32 succeeded
+                    Some(Ok(val)) => val,
+                    // Parsing as u32 failed
+                    Some(Err(_)) => return bad_request!("Invalid or missing parameters"),
+                    // No TTL value was specified
+                    None => TTL_DEFAULT,
+                };
+                let collapse_key: Option<String> = find!("collapse_key")
+                    .map(|key| format!("{}.{}", COLLAPSE_KEY_PREFIX, key));
+                let (bundle_id, endpoint, collapse_id) = match push_token {
                     PushToken::Apns(_) => {
                         let bundle_id = Some(find_or_bad_request!("bundleid"));
                         let endpoint_str = find_or_bad_request!("endpoint");
@@ -259,27 +272,14 @@ impl Service for PushHandler {
                             "s" => Endpoint::Sandbox,
                             _ => return bad_request!("Invalid or missing parameters"),
                         });
-                        (bundle_id, endpoint)
-                    },
-                    _ => (None, None),
-                };
-                let (collapse_key, ttl) = match push_token {
-                    PushToken::Fcm(_) => {
-                        let collapse_key = find!("collapse_key")
-                            .map(|key| format!("{}.{}", COLLAPSE_KEY_PREFIX, key));
-                        let parsed_ttl = find!("ttl")
-                            .map(|ttl_str| ttl_str.trim().parse());
-                        let ttl: Option<u32> = match parsed_ttl {
-                            // Parsing as u32 succeeded
-                            Some(Ok(val)) => Some(val),
-                            // Parsing as u32 failed
+                        let collapse_id = match collapse_key.as_ref().map(String::as_str).map(CollapseId::new) {
+                            Some(Ok(id)) => Some(id),
                             Some(Err(_)) => return bad_request!("Invalid or missing parameters"),
-                            // No TTL value was specified
                             None => None,
                         };
-                        (collapse_key, ttl)
+                        (bundle_id, endpoint, collapse_id)
                     },
-                    _ => (None, None),
+                    _ => (None, None, None),
                 };
 
                 // Send push notification
@@ -292,7 +292,7 @@ impl Service for PushHandler {
                         &session_public_key,
                         collapse_key.as_ref().map(String::as_str),
                         fcm::Priority::High,
-                        ttl.unwrap_or(TTL_DEFAULT),
+                        ttl,
                     ),
                     PushToken::Apns(ref token) => apns::send_push(
                         match endpoint.unwrap() {
@@ -315,7 +315,8 @@ impl Service for PushHandler {
                         bundle_id.expect("bundle_id is None"),
                         version,
                         &session_public_key,
-                        30,
+                        collapse_id,
+                        ttl,
                     ),
                 };
 
