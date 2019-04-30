@@ -17,11 +17,11 @@ Request keys:
 - `token`: The device push token
 - `session`: SHA256 hash of public permanent key of the initiator
 - `version`: Threema Web protocol version
+- `ttl` (optional): The lifespan of a push message, defaults to 90 seconds
+- `collapse_key`: (optional) A parameter identifying a group of push messages that can be
+  collapsed.
 - `bundleid` (APNs only): The bundle id to use
 - `endpoint` (APNs only): Either `p` (production) or `s` (sandbox)
-- `ttl` (FCM only, optional): The lifespan of a push message, defaults to 90 seconds
-- `collapse_key`: (FCM only, optional) A parameter identifying a group of push messages that can be
-  collapsed.
 
 Examples:
 
