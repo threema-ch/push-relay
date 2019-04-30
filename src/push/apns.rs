@@ -70,15 +70,51 @@ pub fn send_push(
             .send(payload)
             .map(|response| debug!("Success details: {:?}", response))
             .map_err(|error| {
-                // Treat "bad device token" errors as client errors
                 if let A2Error::ResponseError(ref resp) = error {
                     if let Some(ref body) = resp.error {
                         trace!("Response body: {:?}", body);
-                        if body.reason == ErrorReason::BadDeviceToken {
-                            return SendPushError::ProcessingClientError(
-                                "Push was unsuccessful: Bad device token".to_string()
-                            );
-                        }
+                        match body.reason {
+                            // Invalid device token
+                            ErrorReason::BadDeviceToken |
+                            ErrorReason::Unregistered |
+                            // Invalid expiration date (invalid TTL)
+                            ErrorReason::BadExpirationDate |
+                            // Invalid topic (bundle id)
+                            ErrorReason::BadTopic |
+                            ErrorReason::DeviceTokenNotForTopic |
+                            ErrorReason::TopicDisallowed => {
+                                return SendPushError::ProcessingClientError(
+                                    format!("Push was unsuccessful: {}", error));
+                            },
+
+                            // Below errors should never happen
+                            ErrorReason::BadCollapseId |
+                            ErrorReason::BadMessageId |
+                            ErrorReason::BadPriority |
+                            ErrorReason::DuplicateHeaders |
+                            ErrorReason::Forbidden |
+                            ErrorReason::IdleTimeout |
+                            ErrorReason::MissingDeviceToken |
+                            ErrorReason::MissingTopic |
+                            ErrorReason::PayloadEmpty |
+                            ErrorReason::BadCertificate |
+                            ErrorReason::BadCertificateEnvironment |
+                            ErrorReason::ExpiredProviderToken |
+                            ErrorReason::InvalidProviderToken |
+                            ErrorReason::MissingProviderToken |
+                            ErrorReason::BadPath |
+                            ErrorReason::MethodNotAllowed |
+                            ErrorReason::PayloadTooLarge |
+                            ErrorReason::TooManyProviderTokenUpdates => {
+                                error!("Unexpected APNs error response: {}", error);
+                            },
+
+                            // APNs server errors
+                            ErrorReason::TooManyRequests |
+                            ErrorReason::InternalServerError |
+                            ErrorReason::ServiceUnavailable |
+                            ErrorReason::Shutdown => {}
+                        };
                     }
                 }
 

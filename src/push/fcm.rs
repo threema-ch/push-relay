@@ -169,9 +169,11 @@ pub fn send_push(
                     Some("MismatchSenderId") => SendPushError::ProcessingClientError("Push was unsuccessful: Mismatched sender ID".into()),
                     Some("MessageTooBig") => SendPushError::ProcessingClientError("Push was unsuccessful: Message too big".into()),
                     Some("InvalidDataKey") => SendPushError::ProcessingClientError("Push was unsuccessful: Invalid data key".into()),
+                    Some("InvalidTtl") => SendPushError::ProcessingClientError("Push was unsuccessful: Invalid TTL".into()),
                     Some("Unavailable") => SendPushError::ProcessingRemoteError("Push was unsuccessful: Timeout".into()),
                     Some("InternalServerError") => SendPushError::ProcessingRemoteError("Push was unsuccessful: Internal server error".into()),
                     Some("DeviceMessageRateExceeded") => SendPushError::ProcessingRemoteError("Push was unsuccessful: Device message rate exceeded".into()),
+                    Some("TopicsMessageRateExceeded") => SendPushError::ProcessingRemoteError("Push was unsuccessful: Topics message rate exceeded".into()),
                     Some(other) => SendPushError::Other(format!("Push was unsuccessful: {}", other)),
                     None => SendPushError::Other("Push was unsuccessful".into()),
                 })
