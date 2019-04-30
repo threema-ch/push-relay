@@ -2,6 +2,7 @@
 //!
 use std::convert::Into;
 use std::io::Read;
+use std::time::{Duration, SystemTime};
 
 use a2::CollapseId;
 use a2::client::{Client, Endpoint};
@@ -45,10 +46,22 @@ pub fn send_push(
     collapse_id: Option<CollapseId>,
     ttl: u32,
 ) -> SendFuture<(), SendPushError> {
+    // Note: This will swallow any errors when converting to a timestamp
+    let expiration: Option<u64> = match ttl {
+        0 => Some(0),
+        ttl => {
+            let now = SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .expect("Could not retrieve UNIX timestamp");
+            now.checked_add(Duration::from_secs(u64::from(ttl)))
+                .map(|expiration| expiration.as_secs())
+        },
+    };
+
     // Notification options
     let options = NotificationOptions {
         apns_id: None,
-        apns_expiration: Some(u64::from(ttl)),
+        apns_expiration: expiration,
         apns_priority: Priority::High,
         apns_topic: Some(bundle_id),
         apns_collapse_id: collapse_id,
