@@ -44,6 +44,7 @@ The payload format looks like this:
 
 - `wcs`: Webclient session (sha256 hash of the public permanent key of the
   initiator), `string`
+- `wca`: An optional identifier for affiliating consecutive pushes, `string` or `null`
 - `wct`: Unix epoch timestamp of the request in seconds, `i64`
 - `wcv`: Protocol version, `u16`
 
