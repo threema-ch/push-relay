@@ -17,6 +17,7 @@ Request keys:
 - `token`: The device push token
 - `session`: SHA256 hash of public permanent key of the initiator
 - `version`: Threema Web protocol version
+- `affiliation` (optional): An identifier for affiliating consecutive pushes
 - `ttl` (optional): The lifespan of a push message, defaults to 90 seconds
 - `collapse_key`: (optional) A parameter identifying a group of push messages that can be
   collapsed.
