@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::convert::Into;
 use std::net::SocketAddr;
 use std::ops::Deref;
@@ -251,6 +252,7 @@ impl Service for PushHandler {
                         return bad_request!("Invalid or missing parameters");
                     },
                 };
+                let affiliation = find!("affiliation").map(Cow::as_ref);
                 let ttl_string = find!("ttl")
                     .map(|ttl_str| ttl_str.trim().parse());
                 let ttl: u32 = match ttl_string {
@@ -290,6 +292,7 @@ impl Service for PushHandler {
                         token,
                         version,
                         &session_public_key,
+                        affiliation,
                         collapse_key.as_ref().map(String::as_str),
                         fcm::Priority::High,
                         ttl,
@@ -315,6 +318,7 @@ impl Service for PushHandler {
                         bundle_id.expect("bundle_id is None"),
                         version,
                         &session_public_key,
+                        affiliation,
                         collapse_id,
                         ttl,
                     ),

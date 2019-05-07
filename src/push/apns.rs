@@ -43,6 +43,7 @@ pub fn send_push(
     bundle_id: &str,
     version: u16,
     session: &str,
+    affiliation: Option<&str>,
     collapse_id: Option<CollapseId>,
     ttl: u32,
 ) -> SendFuture<(), SendPushError> {
@@ -69,7 +70,7 @@ pub fn send_push(
 
     // Notification payload
     let mut payload = SilentNotificationBuilder::new().build(&*push_token.0, options);
-    let data = ThreemaPayload::new(session, version);
+    let data = ThreemaPayload::new(session, affiliation, version);
     if let Err(e) = payload.add_custom_data(PAYLOAD_KEY, &data) {
         return Box::new(future::err(SendPushError::Other(format!(
             "Could not add custom data to APNs payload: {}",
