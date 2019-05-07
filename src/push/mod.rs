@@ -34,6 +34,8 @@ impl PushToken {
 struct ThreemaPayload<'a> {
     /// Session id (public key of the initiator)
     wcs: &'a str,
+    /// Affiliation id
+    wca: Option<&'a str>,
     /// Timestamp
     wct: i64,
     /// Version
@@ -41,9 +43,10 @@ struct ThreemaPayload<'a> {
 }
 
 impl<'a> ThreemaPayload<'a> {
-    pub fn new(session: &'a str, version: u16) -> Self {
+    pub fn new(session: &'a str, affiliation: Option<&'a str>, version: u16) -> Self {
         ThreemaPayload {
             wcs: session,
+            wca: affiliation,
             wct: Utc::now().timestamp(),
             wcv: version,
         }

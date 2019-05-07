@@ -72,11 +72,12 @@ pub fn send_push(
     push_token: &FcmToken,
     version: u16,
     session: &str,
+    affiliation: Option<&str>,
     collapse_key: Option<&str>,
     priority: Priority,
     ttl: u32,
 ) -> SendFuture<(), SendPushError> {
-    let data = ThreemaPayload::new(session, version);
+    let data = ThreemaPayload::new(session, affiliation, version);
     let payload = Payload {
         to: &push_token.0,
         collapse_key,

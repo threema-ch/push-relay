@@ -17,6 +17,7 @@ Request keys:
 - `token`: The device push token
 - `session`: SHA256 hash of public permanent key of the initiator
 - `version`: Threema Web protocol version
+- `affiliation` (optional): An identifier for affiliating consecutive pushes
 - `ttl` (optional): The lifespan of a push message, defaults to 90 seconds
 - `collapse_key`: (optional) A parameter identifying a group of push messages that can be
   collapsed.
@@ -43,6 +44,7 @@ The payload format looks like this:
 
 - `wcs`: Webclient session (sha256 hash of the public permanent key of the
   initiator), `string`
+- `wca`: An optional identifier for affiliating consecutive pushes, `string` or `null`
 - `wct`: Unix epoch timestamp of the request in seconds, `i64`
 - `wcv`: Protocol version, `u16`
 
