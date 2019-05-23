@@ -12,6 +12,12 @@ Possible log types:
 - `[security]` to invite users to upgrade in case of vulnerabilities.
 
 
+### [v3.2.0][v3.2.0] (2019-05-23)
+
+- [added] APNS: Apply `collapse_key` and `ttl` if specified (#24)
+- [fixed] APNs: Use timestamp based on TTL instead of the TTL itself (#25)
+- [changed] Refined error handling (#26)
+
 ### [v3.1.0][v3.1.0] (2019-04-25)
 
 - [added] Allow clients to override the FCM TTL (#19)
@@ -39,3 +45,4 @@ Possible log types:
 [v2.2.0]: https://github.com/threema-ch/push-relay/compare/v2.1.1...v2.2.0
 [v3.0.0]: https://github.com/threema-ch/push-relay/compare/v2.2.0...v3.0.0
 [v3.1.0]: https://github.com/threema-ch/push-relay/compare/v3.0.0...v3.1.0
+[v3.2.0]: https://github.com/threema-ch/push-relay/compare/v3.1.0...v3.2.0
