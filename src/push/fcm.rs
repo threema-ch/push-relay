@@ -16,13 +16,16 @@ use crate::push::{FcmToken, ThreemaPayload};
 use crate::utils::SendFuture;
 
 #[cfg(test)]
-use mockito::SERVER_URL;
+use mockito;
 
 #[cfg(not(test))]
-static FCM_ENDPOINT: &'static str = "https://fcm.googleapis.com";
-
+fn fcm_endpoint() -> String {
+    "https://fcm.googleapis.com".to_string()
+}
 #[cfg(test)]
-static FCM_ENDPOINT: &'static str = SERVER_URL;
+fn fcm_endpoint() -> String {
+    mockito::server_url()
+}
 static FCM_PATH: &'static str = "/fcm/send";
 
 
@@ -106,7 +109,7 @@ pub fn send_push(
     // Build response future
     let response_future = client
         .request(
-            Request::post(Uri::from_str(&(FCM_ENDPOINT.to_string() + FCM_PATH)).unwrap())
+            Request::post(Uri::from_str(&(fcm_endpoint() + FCM_PATH)).unwrap())
                 .header(AUTHORIZATION, &*format!("key={}", api_key))
                 .header(CONTENT_TYPE, "application/json")
                 .header(CONTENT_LENGTH, &*payload_string.len().to_string())
