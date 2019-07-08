@@ -12,6 +12,13 @@ Possible log types:
 - `[security]` to invite users to upgrade in case of vulnerabilities.
 
 
+### [v3.2.1][v3.2.1] (2019-07-08)
+
+- [security] Updated dependencies, including a [security update in a transitive
+  dependency][smallvec-148] (#29)
+
+[smallvec-148]: https://github.com/servo/rust-smallvec/issues/148
+
 ### [v3.2.0][v3.2.0] (2019-05-23)
 
 - [added] APNS: Apply `collapse_key` and `ttl` if specified (#24)
@@ -46,3 +53,4 @@ Possible log types:
 [v3.0.0]: https://github.com/threema-ch/push-relay/compare/v2.2.0...v3.0.0
 [v3.1.0]: https://github.com/threema-ch/push-relay/compare/v3.0.0...v3.1.0
 [v3.2.0]: https://github.com/threema-ch/push-relay/compare/v3.1.0...v3.2.0
+[v3.2.1]: https://github.com/threema-ch/push-relay/compare/v3.2.0...v3.2.1
