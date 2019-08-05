@@ -59,7 +59,7 @@ pub struct ServiceError(String);
 
 impl ServiceError {
     pub fn new(msg: String) -> Self {
-        ServiceError(msg)
+        Self(msg)
     }
 }
 impl fmt::Display for ServiceError {
