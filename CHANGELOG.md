@@ -12,6 +12,14 @@ Possible log types:
 - `[security]` to invite users to upgrade in case of vulnerabilities.
 
 
+### [v3.3.0][v3.3.0] (2019-08-05)
+
+- [security] Updated dependencies, including a [security update in a transitive
+  dependency][memoffset-9] (#29)
+- [changed] Require at least Rust 1.33 to build (previous: 1.31)
+
+[memoffset-9]: https://github.com/Gilnaa/memoffset/issues/9
+
 ### [v3.2.1][v3.2.1] (2019-07-08)
 
 - [security] Updated dependencies, including a [security update in a transitive
