@@ -4,7 +4,7 @@ jobs:
 
   test:
     docker:
-      - image: rust:1.31
+      - image: rust:1.33
     steps:
       - checkout
       # Load cargo target from cache if possible.
@@ -33,7 +33,7 @@ jobs:
             - /usr/local/cargo
   lint:
     docker:
-      - image: rust:1.31
+      - image: rust:1.33
     steps:
       - checkout
       - restore_cache:
@@ -47,7 +47,7 @@ jobs:
             - /usr/local/cargo
   audit:
     docker:
-      - image: rust:1.31
+      - image: rust:1.33
     steps:
       - checkout
       - restore_cache:

@@ -26,7 +26,7 @@ serde = "1.0.27"
 serde_derive = "1.0.27"
 serde_json = "1.0.10"
 tokio-core = "0.1"
-url = "1.7.0"
+url = "2"
 
 [dev-dependencies]
 mockito = "0.17"
