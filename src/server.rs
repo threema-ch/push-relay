@@ -570,6 +570,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::useless_format)]
     fn test_fcm_ok() {
         let to = "aassddff";
         let session = "deadbeef";
