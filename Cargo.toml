@@ -29,7 +29,7 @@ tokio-core = "0.1"
 url = "2"
 
 [dev-dependencies]
-mockito = "0.17"
+mockito = "0.20"
 argparse = "*"
 pretty_env_logger = "*"
 openssl = "*"

@@ -381,7 +381,7 @@ mod tests {
 
     use hyper::Body;
 
-    use self::mockito::mock;
+    use self::mockito::{mock, Matcher};
     use self::openssl::ec::{EcGroup, EcKey};
     use self::openssl::nid::Nid;
 
@@ -570,8 +570,20 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::useless_format)]
     fn test_fcm_ok() {
-        let _m = mock("POST", "/fcm/send")
+        let to = "aassddff";
+        let session = "deadbeef";
+
+        let m = mock("POST", "/fcm/send")
+            .match_body(Matcher::AllOf(vec![
+                Matcher::Regex(format!("\"to\":\"{}\"", to)),
+                Matcher::Regex(format!("\"priority\":\"high\"")),
+                Matcher::Regex(format!("\"time_to_live\":90")),
+                Matcher::Regex(format!("\"wcs\":\"{}\"", session)),
+                Matcher::Regex(format!("\"wca\":null")),
+                Matcher::Regex(format!("\"wcv\":1")),
+            ]))
             .with_status(200)
             .with_body(
                 r#"{
@@ -588,10 +600,14 @@ mod tests {
 
         let req = Request::post("/push")
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .body("type=fcm&token=aassddff&session=deadbeef&version=1".into())
+            .body(format!("type=fcm&token={}&session={}&version=1", to, session).into())
             .unwrap();
         let resp = core.run(handler.call(req)).unwrap();
 
+        // Ensure that the mock was properly called
+        m.assert();
+
+        // Validate response
         assert_eq!(resp.status(), StatusCode::NO_CONTENT);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap().to_str().unwrap(),
