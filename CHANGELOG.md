@@ -24,7 +24,7 @@ Possible log types:
 ### [v3.3.0][v3.3.0] (2019-08-05)
 
 - [security] Updated dependencies, including a [security update in a transitive
-  dependency][memoffset-9] (#29)
+  dependency][memoffset-9]
 - [changed] Require at least Rust 1.33 to build (previous: 1.31)
 
 [memoffset-9]: https://github.com/Gilnaa/memoffset/issues/9
