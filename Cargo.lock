@@ -1005,7 +1005,7 @@ dependencies = [
 
 [[package]]
 name = "push-relay"
-version = "3.3.0"
+version = "3.4.0"
 dependencies = [
  "a2 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "argparse 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",

@@ -12,6 +12,15 @@ Possible log types:
 - `[security]` to invite users to upgrade in case of vulnerabilities.
 
 
+### [v3.4.0][v3.4.0] (2020-01-13)
+
+- [security] Updated dependencies, including a [security update in a transitive
+  dependency][rustsec-2019-033]
+- [changed] Require at least Rust 1.36 to build (previous: 1.33)
+
+[rustsec-2019-033]: https://rustsec.org/advisories/RUSTSEC-2019-0033.html
+
+
 ### [v3.3.0][v3.3.0] (2019-08-05)
 
 - [security] Updated dependencies, including a [security update in a transitive
@@ -20,6 +29,7 @@ Possible log types:
 
 [memoffset-9]: https://github.com/Gilnaa/memoffset/issues/9
 
+
 ### [v3.2.1][v3.2.1] (2019-07-08)
 
 - [security] Updated dependencies, including a [security update in a transitive
@@ -27,11 +37,13 @@ Possible log types:
 
 [smallvec-148]: https://github.com/servo/rust-smallvec/issues/148
 
+
 ### [v3.2.0][v3.2.0] (2019-05-23)
 
 - [added] APNS: Apply `collapse_key` and `ttl` if specified (#24)
 - [fixed] APNs: Use timestamp based on TTL instead of the TTL itself (#25)
 - [changed] Refined error handling (#26)
+
 
 ### [v3.1.0][v3.1.0] (2019-04-25)
 
@@ -62,3 +74,5 @@ Possible log types:
 [v3.1.0]: https://github.com/threema-ch/push-relay/compare/v3.0.0...v3.1.0
 [v3.2.0]: https://github.com/threema-ch/push-relay/compare/v3.1.0...v3.2.0
 [v3.2.1]: https://github.com/threema-ch/push-relay/compare/v3.2.0...v3.2.1
+[v3.3.0]: https://github.com/threema-ch/push-relay/compare/v3.2.1...v3.3.0
+[v3.4.0]: https://github.com/threema-ch/push-relay/compare/v3.3.0...v3.4.0

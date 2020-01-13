@@ -12,7 +12,7 @@ Update changelog:
 Update version numbers:
 
     $ vim Cargo.toml
-    $ cargo update
+    $ cargo update -p push-relay
 
 Commit & tag:
 
