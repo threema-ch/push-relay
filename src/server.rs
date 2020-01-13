@@ -194,9 +194,9 @@ impl Service for PushHandler {
             .map_err(|e| ServiceError::new(e.to_string()))
 
             // Once the body is complete, process it
-            // Allow high cyclomatic complexity for now. The code should get
+            // Allow high cognitive complexity for now. The code should get
             // simpler in the future with async / await.
-            .and_then(#[allow(clippy::cyclomatic_complexity)] move |body: Chunk| {
+            .and_then(#[allow(clippy::cognitive_complexity)] move |body: Chunk| {
                 let parsed = form_urlencoded::parse(&body).collect::<Vec<_>>();
 
                 // Validate parameters
