@@ -47,12 +47,12 @@ jobs:
             - /usr/local/cargo
   audit:
     docker:
-      - image: rust:1.43.1
+      - image: rust:latest
     steps:
       - checkout
       - restore_cache:
           keys:
-            - v2-cargo-audit-cache
+            - v3-cargo-audit-cache
       - run:
           name: Install dependencies
           command: apt update && apt install -y cmake
@@ -60,7 +60,7 @@ jobs:
           name: Install and run cargo-audit
           command: cargo install --force cargo-audit && cargo audit
       - save_cache:
-          key: v2-cargo-audit-cache
+          key: v3-cargo-audit-cache
           paths:
             - /usr/local/cargo
 
