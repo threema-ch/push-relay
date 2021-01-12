@@ -3,55 +3,44 @@ use std::fmt;
 
 use a2::error::Error as A2Error;
 use hyper::error::Error as HyperError;
-use quick_error::quick_error;
+use thiserror::Error;
 
-quick_error! {
-    #[derive(Debug)]
-    pub enum PushRelayError {
-        ApnsError(err: A2Error) {
-            from()
-            display("APNs error: {}", err)
-            cause(err)
-        }
-        HyperError(err: HyperError) {
-            from()
-            display("Hyper error: {}", err)
-            cause(err)
-        }
-    }
+#[derive(Error, Debug)]
+pub enum PushRelayError {
+    #[error("APNs error: {0}")]
+    ApnsError(#[from] A2Error),
+
+    #[error("Hyper error: {0}")]
+    HyperError(#[from] HyperError),
 }
 
-quick_error! {
-    #[derive(Debug)]
-    pub enum SendPushError {
-        SendError(msg: String) {
-            display("Push message could not be sent: {}", msg)
-        }
-        ProcessingRemoteError(msg: String) {  // Caused by remote server. Retrying might help.
-            display("Push message could not be processed: {}", msg)
-        }
-        ProcessingClientError(msg: String) {  // Caused by client (e.g. bad push token). Retrying would probably not help.
-            display("Push message could not be processed: {}", msg)
-        }
-        Other(msg: String) {
-            display("Other: {}", msg)
-        }
-    }
+#[derive(Error, Debug)]
+pub enum SendPushError {
+    #[error("Push message could not be sent: {0}")]
+    SendError(String),
+
+    // Caused by remote server. Retrying might help.
+    #[error("Push message could not be processed: {0}")]
+    ProcessingRemoteError(String),
+
+    // Caused by client (e.g. bad push token). Retrying would probably not help.
+    #[error("Push message could not be processed: {0}")]
+    ProcessingClientError(String),
+
+    #[error("Other: {0}")]
+    Other(String),
 }
 
-quick_error! {
-    #[derive(Debug)]
-    pub enum InfluxdbError {
-        Http(msg: String) {
-            display("HTTP error: {}", msg)
-        }
-        DatabaseNotFound {
-            display("Database not found")
-        }
-        Other(msg: String) {
-            display("Other: {}", msg)
-        }
-    }
+#[derive(Error, Debug)]
+pub enum InfluxdbError {
+    #[error("HTTP error: {0}")]
+    Http(String),
+
+    #[error("Database not found")]
+    DatabaseNotFound,
+
+    #[error("Other: {0}")]
+    Other(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
