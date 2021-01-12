@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 use std::convert::Into;
 use std::net::SocketAddr;
-use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 
 use a2::client::{Client as ApnsClient, Endpoint};
@@ -22,7 +21,7 @@ use crate::influxdb::Influxdb;
 use crate::push::{apns, fcm};
 use crate::push::{ApnsToken, FcmToken, PushToken};
 
-static COLLAPSE_KEY_PREFIX: &'static str = "relay";
+static COLLAPSE_KEY_PREFIX: &str = "relay";
 static TTL_DEFAULT: u32 = 90;
 
 /// Start the server and run infinitely.
@@ -270,6 +269,7 @@ impl Service for PushHandler {
                     };
                     let collapse_key: Option<String> =
                         find!("collapse_key").map(|key| format!("{}.{}", COLLAPSE_KEY_PREFIX, key));
+                    #[allow(clippy::match_wildcard_for_single_variants)]
                     let (bundle_id, endpoint, collapse_id) = match push_token {
                         PushToken::Apns(_) => {
                             let bundle_id = Some(find_or_bad_request!("bundleid"));
@@ -279,11 +279,7 @@ impl Service for PushHandler {
                                 "s" => Endpoint::Sandbox,
                                 _ => return bad_request!("Invalid or missing parameters"),
                             });
-                            let collapse_id = match collapse_key
-                                .as_ref()
-                                .map(String::as_str)
-                                .map(CollapseId::new)
-                            {
+                            let collapse_id = match collapse_key.as_deref().map(CollapseId::new) {
                                 Some(Ok(id)) => Some(id),
                                 Some(Err(_)) => {
                                     return bad_request!("Invalid or missing parameters")
@@ -302,51 +298,51 @@ impl Service for PushHandler {
                         session_public_key,
                         version
                     );
-                    let push_future =
-                        match push_token {
-                            PushToken::Fcm(ref token) => fcm::send_push(
-                                &fcm_api_key_clone,
-                                token,
-                                version,
-                                &session_public_key,
-                                affiliation,
-                                collapse_key.as_ref().map(String::as_str),
-                                fcm::Priority::High,
-                                ttl,
-                            ),
-                            PushToken::Apns(ref token) => {
-                                apns::send_push(
-                                    match endpoint.unwrap() {
-                                        Endpoint::Production => {
-                                            debug!("Using production endpoint");
-                                            match apns_client_prod_clone.lock() {
-                                                Ok(guard) => guard,
-                                                Err(_) => return server_error!(
-                                                    "Could not lock apns_client_prod_clone mutex"
-                                                ),
-                                            }
-                                        }
-                                        Endpoint::Sandbox => {
-                                            debug!("Using sandbox endpoint");
-                                            match apns_client_sbox_clone.lock() {
-                                                Ok(guard) => guard,
-                                                Err(_) => return server_error!(
-                                                    "Could not lock apns_client_sbox_clone mutex"
-                                                ),
-                                            }
+                    let push_future = match push_token {
+                        PushToken::Fcm(ref token) => fcm::send_push(
+                            &fcm_api_key_clone,
+                            token,
+                            version,
+                            &session_public_key,
+                            affiliation,
+                            collapse_key.as_deref(),
+                            fcm::Priority::High,
+                            ttl,
+                        ),
+                        PushToken::Apns(ref token) => apns::send_push(
+                            &*match endpoint.unwrap() {
+                                Endpoint::Production => {
+                                    debug!("Using production endpoint");
+                                    match apns_client_prod_clone.lock() {
+                                        Ok(guard) => guard,
+                                        Err(_) => {
+                                            return server_error!(
+                                                "Could not lock apns_client_prod_clone mutex"
+                                            )
                                         }
                                     }
-                                    .deref(),
-                                    token,
-                                    bundle_id.expect("bundle_id is None"),
-                                    version,
-                                    &session_public_key,
-                                    affiliation,
-                                    collapse_id,
-                                    ttl,
-                                )
-                            }
-                        };
+                                }
+                                Endpoint::Sandbox => {
+                                    debug!("Using sandbox endpoint");
+                                    match apns_client_sbox_clone.lock() {
+                                        Ok(guard) => guard,
+                                        Err(_) => {
+                                            return server_error!(
+                                                "Could not lock apns_client_sbox_clone mutex"
+                                            )
+                                        }
+                                    }
+                                }
+                            },
+                            token,
+                            bundle_id.expect("bundle_id is None"),
+                            version,
+                            &session_public_key,
+                            affiliation,
+                            collapse_id,
+                            ttl,
+                        ),
+                    };
 
                     Box::new(
                         push_future

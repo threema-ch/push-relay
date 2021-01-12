@@ -1,7 +1,6 @@
 use std::str::from_utf8;
 use std::time::Duration;
 
-use base64;
 use futures::future::{self, Either, Future};
 use futures::Stream;
 use http::header::{AUTHORIZATION, CONTENT_TYPE};
@@ -38,10 +37,10 @@ impl Influxdb {
             .build(https_connector);
 
         // Determine hostname
-        let hostname = hostname::get()
-            .ok()
-            .map(|os_string| os_string.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "unknown".to_string());
+        let hostname = hostname::get().ok().map_or_else(
+            || "unknown".to_string(),
+            |os_string| os_string.to_string_lossy().into_owned(),
+        );
 
         // Determine authorization header
         let authorization = Self::get_authorization_header(&user, &pass);

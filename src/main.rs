@@ -5,15 +5,17 @@
 
 #![deny(clippy::all)]
 #![warn(clippy::pedantic)]
+#![allow(clippy::doc_markdown)]
+#![allow(clippy::manual_unwrap_or)]
+#![allow(clippy::map_err_ignore)]
+#![allow(clippy::match_same_arms)]
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::non_ascii_literal)]
-#![allow(clippy::match_same_arms)]
 #![allow(clippy::too_many_arguments)]
+#![allow(clippy::too_many_lines)]
 
 #[macro_use]
 extern crate log;
-
-use env_logger;
 
 #[macro_use]
 mod utils;

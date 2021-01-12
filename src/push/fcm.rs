@@ -26,7 +26,7 @@ fn fcm_endpoint() -> String {
 fn fcm_endpoint() -> String {
     mockito::server_url()
 }
-static FCM_PATH: &'static str = "/fcm/send";
+static FCM_PATH: &str = "/fcm/send";
 
 /// FCM push priority.
 #[derive(Debug, Serialize)]
@@ -171,7 +171,7 @@ pub fn send_push(
                 let msg: Option<String> = data
                     .results
                     .and_then(|results| results.first().and_then(|result| result.error.clone()));
-                Err(match msg.as_ref().map(String::as_str) {
+                Err(match msg.as_deref() {
                     // https://firebase.google.com/docs/cloud-messaging/http-server-ref#error-codes
                     Some("MissingRegistration") => SendPushError::ProcessingClientError(
                         "Push was unsuccessful: Missing push token".into(),
