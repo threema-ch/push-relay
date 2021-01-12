@@ -1,14 +1,14 @@
 //! Code related to the sending of FCM push notifications.
 
-use std::str::{FromStr, from_utf8};
+use std::str::{from_utf8, FromStr};
 
-use futures::Stream;
 use futures::future::{self, Future};
-use http::{Request, Response};
+use futures::Stream;
 use http::header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE};
+use http::{Request, Response};
 use hyper::{Body, Chunk, Client, StatusCode, Uri};
 use hyper_tls::HttpsConnector;
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 use serde_json as json;
 
 use crate::errors::SendPushError;
@@ -26,8 +26,7 @@ fn fcm_endpoint() -> String {
 fn fcm_endpoint() -> String {
     mockito::server_url()
 }
-static FCM_PATH: &'static str = "/fcm/send";
-
+static FCM_PATH: &str = "/fcm/send";
 
 /// FCM push priority.
 #[derive(Debug, Serialize)]
@@ -98,7 +97,7 @@ pub fn send_push(
                 "Could not create HttpsConnector: {}",
                 e
             ))))
-        },
+        }
     };
     let client = Client::builder().build(https_connector);
 
@@ -114,11 +113,12 @@ pub fn send_push(
                 .header(CONTENT_TYPE, "application/json")
                 .header(CONTENT_LENGTH, &*payload_string.len().to_string())
                 .body(Body::from(payload_string))
-                .unwrap()
+                .unwrap(),
         )
         .map_err(|e| SendPushError::SendError(e.to_string()));
 
-    let body_read_error = |e| SendPushError::Other(format!("Could not read FCM response body: {}", e));
+    let body_read_error =
+        |e| SendPushError::Other(format!("Could not read FCM response body: {}", e));
 
     // Process response
     let chunk_future = response_future.and_then(move |response: Response<Body>| {
@@ -127,16 +127,22 @@ pub fn send_push(
         let body = response.into_body();
         match status {
             StatusCode::OK => sboxed!(body.concat2().map_err(body_read_error)),
-            StatusCode::BAD_REQUEST => sboxed!(future::err(SendPushError::ProcessingRemoteError("400 Bad Request".into()))),
-            StatusCode::UNAUTHORIZED => sboxed!(future::err(SendPushError::ProcessingRemoteError("Unauthorized. Is the API token correct?".into()))),
-            _ => sboxed!(
-                body.concat2().map_err(body_read_error).and_then(
-                    |chunk| match from_utf8(&*chunk) {
+            StatusCode::BAD_REQUEST => sboxed!(future::err(SendPushError::ProcessingRemoteError(
+                "400 Bad Request".into()
+            ))),
+            StatusCode::UNAUTHORIZED => sboxed!(future::err(SendPushError::ProcessingRemoteError(
+                "Unauthorized. Is the API token correct?".into()
+            ))),
+            _ => {
+                sboxed!(body.concat2().map_err(body_read_error).and_then(|chunk| {
+                    match from_utf8(&*chunk) {
                         Ok(body) => Err(SendPushError::Other(format!("Unknown error: {}", body))),
-                        Err(_) => Err(SendPushError::Other("Unknown error (and non-UTF-8 body)".into())),
-                    },
-                )
-            ),
+                        Err(_) => Err(SendPushError::Other(
+                            "Unknown error (and non-UTF-8 body)".into(),
+                        )),
+                    }
+                },))
+            }
         }
     });
 
@@ -162,23 +168,50 @@ pub fn send_push(
             }
             (0, 1) => {
                 warn!("Response: {:?}", data);
-                let msg: Option<String> = data.results
+                let msg: Option<String> = data
+                    .results
                     .and_then(|results| results.first().and_then(|result| result.error.clone()));
-                Err(match msg.as_ref().map(String::as_str) {
+                Err(match msg.as_deref() {
                     // https://firebase.google.com/docs/cloud-messaging/http-server-ref#error-codes
-                    Some("MissingRegistration") => SendPushError::ProcessingClientError("Push was unsuccessful: Missing push token".into()),
-                    Some("InvalidRegistration") => SendPushError::ProcessingClientError("Push was unsuccessful: Invalid push token".into()),
-                    Some("NotRegistered") => SendPushError::ProcessingClientError("Push was unsuccessful: Unregistered device".into()),
-                    Some("InvalidPackageName") => SendPushError::ProcessingClientError("Push was unsuccessful: Push token does not match target app".into()),
-                    Some("MismatchSenderId") => SendPushError::ProcessingClientError("Push was unsuccessful: Mismatched sender ID".into()),
-                    Some("MessageTooBig") => SendPushError::ProcessingClientError("Push was unsuccessful: Message too big".into()),
-                    Some("InvalidDataKey") => SendPushError::ProcessingClientError("Push was unsuccessful: Invalid data key".into()),
-                    Some("InvalidTtl") => SendPushError::ProcessingClientError("Push was unsuccessful: Invalid TTL".into()),
-                    Some("Unavailable") => SendPushError::ProcessingRemoteError("Push was unsuccessful: Timeout".into()),
-                    Some("InternalServerError") => SendPushError::ProcessingRemoteError("Push was unsuccessful: Internal server error".into()),
-                    Some("DeviceMessageRateExceeded") => SendPushError::ProcessingRemoteError("Push was unsuccessful: Device message rate exceeded".into()),
-                    Some("TopicsMessageRateExceeded") => SendPushError::ProcessingRemoteError("Push was unsuccessful: Topics message rate exceeded".into()),
-                    Some(other) => SendPushError::Other(format!("Push was unsuccessful: {}", other)),
+                    Some("MissingRegistration") => SendPushError::ProcessingClientError(
+                        "Push was unsuccessful: Missing push token".into(),
+                    ),
+                    Some("InvalidRegistration") => SendPushError::ProcessingClientError(
+                        "Push was unsuccessful: Invalid push token".into(),
+                    ),
+                    Some("NotRegistered") => SendPushError::ProcessingClientError(
+                        "Push was unsuccessful: Unregistered device".into(),
+                    ),
+                    Some("InvalidPackageName") => SendPushError::ProcessingClientError(
+                        "Push was unsuccessful: Push token does not match target app".into(),
+                    ),
+                    Some("MismatchSenderId") => SendPushError::ProcessingClientError(
+                        "Push was unsuccessful: Mismatched sender ID".into(),
+                    ),
+                    Some("MessageTooBig") => SendPushError::ProcessingClientError(
+                        "Push was unsuccessful: Message too big".into(),
+                    ),
+                    Some("InvalidDataKey") => SendPushError::ProcessingClientError(
+                        "Push was unsuccessful: Invalid data key".into(),
+                    ),
+                    Some("InvalidTtl") => SendPushError::ProcessingClientError(
+                        "Push was unsuccessful: Invalid TTL".into(),
+                    ),
+                    Some("Unavailable") => SendPushError::ProcessingRemoteError(
+                        "Push was unsuccessful: Timeout".into(),
+                    ),
+                    Some("InternalServerError") => SendPushError::ProcessingRemoteError(
+                        "Push was unsuccessful: Internal server error".into(),
+                    ),
+                    Some("DeviceMessageRateExceeded") => SendPushError::ProcessingRemoteError(
+                        "Push was unsuccessful: Device message rate exceeded".into(),
+                    ),
+                    Some("TopicsMessageRateExceeded") => SendPushError::ProcessingRemoteError(
+                        "Push was unsuccessful: Topics message rate exceeded".into(),
+                    ),
+                    Some(other) => {
+                        SendPushError::Other(format!("Push was unsuccessful: {}", other))
+                    }
                     None => SendPushError::Other("Push was unsuccessful".into()),
                 })
             }

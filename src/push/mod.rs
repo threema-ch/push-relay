@@ -4,7 +4,6 @@ pub mod fcm;
 use chrono::Utc;
 use serde_derive::Serialize;
 
-
 /// A FCM token.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct FcmToken(pub String);

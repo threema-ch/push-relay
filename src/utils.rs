@@ -1,6 +1,5 @@
 use futures::future::Future;
 
-
 /// A type alias for a boxed Future + Send.
 pub type SendFuture<T, E> = Box<dyn Future<Item = T, Error = E> + Send>;
 
