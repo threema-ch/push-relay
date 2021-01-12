@@ -160,10 +160,9 @@ fn main() {
         apns_key_id,
         addr,
         influxdb,
-    ).unwrap_or_else(
-        |e| {
-            error!("Could not start relay server: {}", e);
-            process::exit(3);
-        },
-    );
+    )
+    .unwrap_or_else(|e| {
+        error!("Could not start relay server: {}", e);
+        process::exit(3);
+    });
 }

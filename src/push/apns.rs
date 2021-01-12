@@ -4,22 +4,20 @@ use std::convert::Into;
 use std::io::Read;
 use std::time::{Duration, SystemTime};
 
-use a2::CollapseId;
 use a2::client::{Client, Endpoint};
-use a2::error::{Error as A2Error};
+use a2::error::Error as A2Error;
 use a2::request::notification::{
     NotificationBuilder, NotificationOptions, Priority, SilentNotificationBuilder,
 };
 use a2::response::ErrorReason;
+use a2::CollapseId;
 use futures::{future, Future};
 
 use crate::errors::{PushRelayError, SendPushError};
 use crate::push::{ApnsToken, ThreemaPayload};
 use crate::utils::SendFuture;
 
-
 const PAYLOAD_KEY: &str = "3mw";
-
 
 /// Create a new APNs client instance.
 pub fn create_client<R, T, K>(
@@ -56,7 +54,7 @@ pub fn send_push(
                 .expect("Could not retrieve UNIX timestamp");
             now.checked_add(Duration::from_secs(u64::from(ttl)))
                 .map(|expiration| expiration.as_secs())
-        },
+        }
     };
 
     // Notification options
@@ -134,6 +132,6 @@ pub fn send_push(
 
                 // Treat all other errors as server errors
                 SendPushError::ProcessingRemoteError(format!("Push was unsuccessful: {}", error))
-            })
+            }),
     )
 }

@@ -2,16 +2,15 @@ use std::str::from_utf8;
 use std::time::Duration;
 
 use base64;
+use futures::future::{self, Either, Future};
 use futures::Stream;
-use futures::future::{self, Future, Either};
+use http::header::{AUTHORIZATION, CONTENT_TYPE};
 use http::{Request, Response};
-use http::header::{CONTENT_TYPE, AUTHORIZATION};
-use hyper::{Body, Client, StatusCode, Uri};
 use hyper::client::HttpConnector;
+use hyper::{Body, Client, StatusCode, Uri};
 use hyper_tls::HttpsConnector;
 
 use crate::errors::InfluxdbError;
-
 
 #[derive(Debug)]
 pub struct Influxdb {
@@ -63,19 +62,22 @@ impl Influxdb {
     }
 
     /// Create the database.
-    pub fn create_db(&self) -> impl Future<Item=(), Error=InfluxdbError> {
+    pub fn create_db(&self) -> impl Future<Item = (), Error = InfluxdbError> {
         debug!("Creating InfluxDB database \"{}\"", self.db);
 
         // Build response future
-        let uri: Uri = format!("{}/query", &self.connection_string).parse().unwrap();
+        let uri: Uri = format!("{}/query", &self.connection_string)
+            .parse()
+            .unwrap();
         let body: Body = format!("q=CREATE%20DATABASE%20{}", self.db).into();
-        let response_future = self.client
+        let response_future = self
+            .client
             .request(
                 Request::post(uri)
                     .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
                     .header(AUTHORIZATION, &*self.authorization)
                     .body(body)
-                    .unwrap()
+                    .unwrap(),
             )
             .map_err(|e| InfluxdbError::Http(format!("Request failed: {}", e)));
 
@@ -86,23 +88,33 @@ impl Influxdb {
                     .into_body()
                     .concat2()
                     .map_err(|e| InfluxdbError::Http(format!("Cannot read response body: {}", e)))
-                    .and_then(|text| Err(InfluxdbError::Other(
-                        from_utf8(&*text).unwrap_or("[invalid utf8 body]").to_string()
-                    )))
+                    .and_then(|text| {
+                        Err(InfluxdbError::Other(
+                            from_utf8(&*text)
+                                .unwrap_or("[invalid utf8 body]")
+                                .to_string(),
+                        ))
+                    }),
             ),
-            status => Either::A(future::err(InfluxdbError::Http(format!("Invalid status code: {}", status)))),
+            status => Either::A(future::err(InfluxdbError::Http(format!(
+                "Invalid status code: {}",
+                status
+            )))),
         })
     }
 
-    fn log(&self, body: Body) -> impl Future<Item=(), Error=InfluxdbError> {
+    fn log(&self, body: Body) -> impl Future<Item = (), Error = InfluxdbError> {
         // Build response future
-        let uri: Uri = format!("{}/write?db={}", &self.connection_string, &self.db).parse().unwrap();
-        let response_future = self.client
+        let uri: Uri = format!("{}/write?db={}", &self.connection_string, &self.db)
+            .parse()
+            .unwrap();
+        let response_future = self
+            .client
             .request(
                 Request::post(uri)
                     .header(AUTHORIZATION, &*self.authorization)
                     .body(body)
-                    .unwrap()
+                    .unwrap(),
             )
             .map_err(|e| InfluxdbError::Http(format!("Request failed: {}", e)));
 
@@ -110,12 +122,15 @@ impl Influxdb {
         response_future.and_then(|response: Response<Body>| match response.status() {
             StatusCode::NO_CONTENT => Ok(()),
             StatusCode::NOT_FOUND => Err(InfluxdbError::DatabaseNotFound),
-            status => Err(InfluxdbError::Http(format!("Invalid status code: {}", status))),
+            status => Err(InfluxdbError::Http(format!(
+                "Invalid status code: {}",
+                status
+            ))),
         })
     }
 
     /// Log the starting of the push relay server.
-    pub fn log_started(&self) -> impl Future<Item=(), Error=InfluxdbError> {
+    pub fn log_started(&self) -> impl Future<Item = (), Error = InfluxdbError> {
         debug!("Logging \"started\" event to InfluxDB");
         self.log(format!("started,host={} value=1", self.hostname).into())
     }
@@ -126,7 +141,7 @@ impl Influxdb {
         push_type: &str,
         version: u16,
         success: bool,
-    ) -> impl Future<Item=(), Error=InfluxdbError> {
+    ) -> impl Future<Item = (), Error = InfluxdbError> {
         debug!(
             "Logging \"push\" event ({}, {}, v{}) to InfluxDB",
             if success { "successful" } else { "failed" },
@@ -134,12 +149,15 @@ impl Influxdb {
             version,
         );
         let success_str = if success { "true" } else { "false" };
-        self.log(format!(
-            "push,host={},type={},version={},success={} value=1",
-            self.hostname,
-            push_type.to_ascii_lowercase(),
-            version,
-            success_str,
-        ).into())
+        self.log(
+            format!(
+                "push,host={},type={},version={},success={} value=1",
+                self.hostname,
+                push_type.to_ascii_lowercase(),
+                version,
+                success_str,
+            )
+            .into(),
+        )
     }
 }
