@@ -166,12 +166,9 @@ dependencies = [
 
 [[package]]
 name = "base64"
-version = "0.10.1"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b25d992356d2eb0ed82172f5248873db5560c4721f564b13cb5193bda5e668e"
-dependencies = [
- "byteorder",
-]
+checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 
 [[package]]
 name = "bitflags"
@@ -1280,7 +1277,7 @@ version = "3.4.0"
 dependencies = [
  "a2",
  "argparse",
- "base64 0.10.1",
+ "base64 0.13.0",
  "chrono",
  "clap",
  "env_logger 0.6.2",
