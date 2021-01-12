@@ -83,10 +83,11 @@ dependencies = [
 
 [[package]]
 name = "assert-json-diff"
-version = "1.0.1"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9881d306dee755eccf052d652b774a6b2861e86b4772f555262130e58e4f81d2"
+checksum = "4259cbe96513d2f1073027a259fc2ca917feb3026a5a8d984e3628e490255cc0"
 dependencies = [
+ "extend",
  "serde",
  "serde_json",
 ]
@@ -411,6 +412,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "dtoa"
+version = "0.4.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "88d7ed2934d741c6b37e33e3832298e8850b53fd2d2bea03873375596c7cea4e"
+
+[[package]]
 name = "either"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -480,6 +487,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6930e04918388a9a2e41d518c25cf679ccafe26733fb4127dbf21993f2575d46"
 dependencies = [
  "backtrace 0.3.55",
+]
+
+[[package]]
+name = "extend"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f47da3a72ec598d9c8937a7ebca8962a5c7a1f28444e38c2b33c771ba3f55f05"
+dependencies = [
+ "proc-macro-error",
+ "proc-macro2 1.0.24",
+ "quote 1.0.8",
+ "syn 1.0.58",
 ]
 
 [[package]]
@@ -975,9 +994,9 @@ dependencies = [
 
 [[package]]
 name = "mockito"
-version = "0.20.0"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa3f481382a4d68c5f1d27fb567db27196630f729706003cb07a9b8330a30306"
+checksum = "36a0eb7e686b49b02c1cb87c14b8e2a05de0d36c6eee0293653d0a875906d499"
 dependencies = [
  "assert-json-diff",
  "colored",
@@ -985,10 +1004,10 @@ dependencies = [
  "httparse",
  "lazy_static",
  "log",
- "percent-encoding 1.0.1",
  "rand 0.7.3",
  "regex",
  "serde_json",
+ "serde_urlencoded",
 ]
 
 [[package]]
@@ -1209,6 +1228,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "proc-macro-error"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da25490ff9892aab3fcf7c36f08cfb902dd3e71ca0f9f9517bea02a73a5ce38c"
+dependencies = [
+ "proc-macro-error-attr",
+ "proc-macro2 1.0.24",
+ "quote 1.0.8",
+ "syn 1.0.58",
+ "version_check",
+]
+
+[[package]]
+name = "proc-macro-error-attr"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a1be40180e52ecc98ad80b184934baf3d0d29f979574e439af5a55274b35f869"
+dependencies = [
+ "proc-macro2 1.0.24",
+ "quote 1.0.8",
+ "version_check",
+]
+
+[[package]]
 name = "proc-macro-hack"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1247,7 +1290,6 @@ version = "3.4.0"
 dependencies = [
  "a2",
  "argparse",
- "assert-json-diff",
  "base64 0.10.1",
  "chrono",
  "clap",
@@ -1722,6 +1764,18 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "serde_urlencoded"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ec5d77e2d4c73717816afac02670d5c4f534ea95ed430442cad02e7a6e32c97"
+dependencies = [
+ "dtoa",
+ "itoa",
+ "serde",
+ "url 2.2.0",
 ]
 
 [[package]]
@@ -2250,6 +2304,12 @@ name = "vec_map"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
+
+[[package]]
+name = "version_check"
+version = "0.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5a972e5669d67ba988ce3dc826706fb0a8b01471c088cb0b6110b805cc36aed"
 
 [[package]]
 name = "want"
