@@ -1,6 +1,6 @@
 # FCM/APNs Push Relay
 
-[![CircleCI][circle-ci-badge]][circle-ci]
+[![CI][ci-badge]][ci]
 [![License][license-badge]][license]
 
 This server accepts push requests via HTTP and notifies the Google FCM / Apple
@@ -116,7 +116,7 @@ Licensed under either of
 at your option.
 
 <!-- Badges -->
-[circle-ci]: https://circleci.com/gh/threema-ch/push-relay/tree/master
-[circle-ci-badge]: https://circleci.com/gh/threema-ch/push-relay/tree/master.svg?style=shield
+[ci]: https://github.com/threema-ch/push-relay/actions?query=workflow%3ACI
+[ci-badge]: https://img.shields.io/github/workflow/status/threema-ch/push-relay/CI/master
 [license]: https://github.com/threema-ch/push-relay#license
 [license-badge]: https://img.shields.io/badge/License-Apache%202.0%20%2f%20MIT-blue.svg
