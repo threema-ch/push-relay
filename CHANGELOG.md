@@ -7,10 +7,17 @@ Possible log types:
 - `[added]` for new features.
 - `[changed]` for changes in existing functionality.
 - `[deprecated]` for once-stable features removed in upcoming releases.
-- `[removed]` for deprecated features removed in this release.
+- `[removed]` for features removed in this release.
 - `[fixed]` for any bug fixes.
 - `[security]` to invite users to upgrade in case of vulnerabilities.
 
+
+### Unreleased
+
+- [changed] The config file format was changed from INI to TOML and the default
+  filename was changed from `config.ini` to `config.toml`. Since TOML is a
+  superset of INI, the existing config should remain valid. But the change
+  simplifies parsing and allows more data types (like lists and maps).
 
 ### [v3.4.0][v3.4.0] (2020-01-13)
 
