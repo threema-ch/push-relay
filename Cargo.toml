@@ -20,11 +20,11 @@ hyper-tls = "0.3"
 lazy_static = "1.3"
 log = "0.4"
 mime = "0.3"
-rust-ini = { version = "0.16", features = ["inline-comment"] }
 serde = "1.0.27"
 serde_derive = "1.0.27"
 serde_json = "1.0.10"
 thiserror = "1"
+toml = "0.5"
 tokio-core = "0.1"
 url = "2"
 

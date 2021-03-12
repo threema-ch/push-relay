@@ -16,6 +16,7 @@ use hyper::{Body, Chunk, Method};
 use tokio_core::reactor::Core;
 use url::form_urlencoded;
 
+use crate::config::Config;
 use crate::errors::{InfluxdbError, PushRelayError, SendPushError, ServiceError};
 use crate::influxdb::Influxdb;
 use crate::push::{apns, fcm};
@@ -26,33 +27,45 @@ static TTL_DEFAULT: u32 = 90;
 
 /// Start the server and run infinitely.
 pub fn serve(
-    fcm_api_key: &str,
+    config: Config,
     apns_api_key: &[u8],
-    apns_team_id: &str,
-    apns_key_id: &str,
     listen_on: SocketAddr,
-    influxdb: Option<Influxdb>,
 ) -> Result<(), PushRelayError> {
     // TODO: CSRF
 
     // Create reactor loop
     let mut core = Core::new().expect("Could not start event loop");
 
+    // Destructure config
+    let Config {
+        fcm,
+        apns,
+        influxdb,
+    } = config;
+
     // Create APNs clients
     let apns_client_prod = Arc::new(Mutex::new(apns::create_client(
         Endpoint::Production,
         apns_api_key,
-        apns_team_id,
-        apns_key_id,
+        apns.team_id.clone(),
+        apns.key_id.clone(),
     )?));
     let apns_client_sbox = Arc::new(Mutex::new(apns::create_client(
         Endpoint::Sandbox,
         apns_api_key,
-        apns_team_id,
-        apns_key_id,
+        apns.team_id,
+        apns.key_id,
     )?));
 
-    // Check InfluxDB config
+    // Create InfluxDB client
+    let influxdb = influxdb.map(|c| {
+        Arc::new(
+            Influxdb::init(c.connection_string, &c.user, &c.pass, c.db)
+                .expect("Failed to create Influxdb instance"),
+        )
+    });
+
+    // Initialize InfluxDB
     if let Some(ref db) = influxdb {
         fn log_started(core: &mut Core, db: &Influxdb) {
             if let Err(e) = core.run(db.log_started()) {
@@ -74,17 +87,13 @@ pub fn serve(
         debug!("Not using InfluxDB logging");
     };
 
-    // Wrap Influxdb in an Arc
-    let influxdb_arc = influxdb.map(Arc::new);
-
     // Service function
-    let fcm_api_key_owned = fcm_api_key.to_string();
     let new_service = move || {
         let future: FutureResult<PushHandler, ServiceError> = future::ok(PushHandler {
-            fcm_api_key: fcm_api_key_owned.clone(),
+            fcm_api_key: fcm.api_key.clone(),
             apns_client_prod: apns_client_prod.clone(),
             apns_client_sbox: apns_client_sbox.clone(),
-            influxdb: influxdb_arc.clone(),
+            influxdb: influxdb.clone(),
         });
         future
     };

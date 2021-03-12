@@ -59,7 +59,7 @@ above.
 
 ## Running
 
-You need the Rust compiler (1.49 or higher). First, create a `config.ini` file
+You need the Rust compiler (1.49 or higher). First, create a `config.toml` file
 that looks like this:
 
     [fcm]
