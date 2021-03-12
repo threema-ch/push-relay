@@ -1,6 +1,6 @@
 //! Configuration.
 
-use std::{fs::File, io::Read, path::Path};
+use std::{collections::HashMap, fs::File, io::Read, path::Path};
 
 use serde_derive::Deserialize;
 
@@ -8,6 +8,7 @@ use serde_derive::Deserialize;
 pub struct Config {
     pub fcm: FcmConfig,
     pub apns: ApnsConfig,
+    pub hms: HashMap<String, HmsConfig>,
     pub influxdb: Option<InfluxdbConfig>,
 }
 
@@ -21,6 +22,12 @@ pub struct ApnsConfig {
     pub keyfile: String,
     pub key_id: String,
     pub team_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct HmsConfig {
+    pub client_id: String,
+    pub client_secret: String,
 }
 
 #[derive(Debug, Deserialize)]

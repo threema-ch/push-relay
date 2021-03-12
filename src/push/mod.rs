@@ -1,5 +1,6 @@
 pub mod apns;
 pub mod fcm;
+pub mod hms;
 
 use chrono::Utc;
 use serde_derive::Serialize;
@@ -12,11 +13,16 @@ pub struct FcmToken(pub String);
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ApnsToken(pub String);
 
+/// A HMS token.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct HmsToken(pub String);
+
 /// The possible push token types.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum PushToken {
     Fcm(FcmToken),
     Apns(ApnsToken),
+    Hms { token: HmsToken, subtype: String },
 }
 
 impl PushToken {
@@ -24,6 +30,7 @@ impl PushToken {
         match *self {
             PushToken::Fcm(_) => "FCM",
             PushToken::Apns(_) => "APNs",
+            PushToken::Hms { .. } => "HMS",
         }
     }
 }

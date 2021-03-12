@@ -1,7 +1,13 @@
-//! # FCM/APNs Push Relay
+//! # FCM/APNs/HMS Push Relay
 //!
-//! This server accepts push requests via HTTPS and notifies the FCM push
+//! This server accepts push requests via HTTPS and notifies the push
 //! service.
+//!
+//! Supported service:
+//!
+//! - Google FCM
+//! - Apple APNs
+//! - Huawei HMS
 
 #![deny(clippy::all)]
 #![allow(clippy::too_many_arguments)]
@@ -64,6 +70,19 @@ async fn main() {
         error!("Could not load config file '{}': {}", configfile, e);
         process::exit(2);
     });
+
+    // Determine HMS credentials
+    info!("Found FCM config");
+    info!("Found APNs config");
+    if config.hms.is_empty() {
+        warn!("No HMS credentials found in config, HMS pushes cannot be handled");
+    } else {
+        info!(
+            "Found {} HMS config(s): {:?}",
+            config.hms.len(),
+            config.hms.keys().collect::<Vec<_>>()
+        );
+    }
 
     // Open and read APNs keyfile
     let mut apns_keyfile = File::open(&config.apns.keyfile).unwrap_or_else(|e| {

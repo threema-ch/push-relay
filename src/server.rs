@@ -1,5 +1,6 @@
 use std::{
     borrow::Cow,
+    collections::HashMap,
     convert::Into,
     future::Future,
     net::SocketAddr,
@@ -20,14 +21,17 @@ use hyper::{
     Method, Request, Response,
 };
 use tokio::sync::Mutex;
-use url::form_urlencoded;
 
 use crate::{
     config::Config,
     errors::{InfluxdbError, PushRelayError, SendPushError, ServiceError},
     http_client::{self, HttpClient},
     influxdb::Influxdb,
-    push::{apns, fcm, ApnsToken, FcmToken, PushToken},
+    push::{
+        apns, fcm,
+        hms::{self, HmsContext},
+        ApnsToken, FcmToken, HmsToken, PushToken,
+    },
 };
 
 static COLLAPSE_KEY_PREFIX: &str = "relay";
@@ -43,6 +47,7 @@ pub async fn serve(
     let Config {
         fcm,
         apns,
+        hms,
         influxdb,
     } = config;
 
@@ -62,6 +67,21 @@ pub async fn serve(
         apns.team_id,
         apns.key_id,
     )?));
+
+    // Create a shared HMS HTTP client
+    let hms_client = http_client::make_client(90);
+
+    // Create a HMS context for every config entry
+    let hms_contexts = Arc::new(
+        hms.iter()
+            .map(|(k, v)| {
+                (
+                    k.to_string(),
+                    HmsContext::new(hms_client.clone(), v.clone()),
+                )
+            })
+            .collect::<HashMap<String, HmsContext>>(),
+    );
 
     // Create InfluxDB client
     let influxdb = influxdb.map(|c| {
@@ -103,6 +123,7 @@ pub async fn serve(
             fcm_api_key: fcm.api_key.clone(),
             apns_client_prod: apns_client_prod.clone(),
             apns_client_sbox: apns_client_sbox.clone(),
+            hms_contexts: hms_contexts.clone(),
             influxdb: influxdb.clone(),
         };
         async move { Ok::<_, ServiceError>(service) }
@@ -120,6 +141,7 @@ pub struct PushHandler {
     fcm_api_key: String,
     apns_client_prod: Arc<Mutex<ApnsClient>>,
     apns_client_sbox: Arc<Mutex<ApnsClient>>,
+    hms_contexts: Arc<HashMap<String, HmsContext>>,
     influxdb: Option<Arc<Influxdb>>,
 }
 
@@ -172,6 +194,7 @@ async fn handle_push_request(
     fcm_api_key: String,
     apns_client_prod: Arc<Mutex<ApnsClient>>,
     apns_client_sbox: Arc<Mutex<ApnsClient>>,
+    hms_contexts: Arc<HashMap<String, HmsContext>>,
     influxdb: Option<Arc<Influxdb>>,
 ) -> Result<Response<Body>, ServiceError> {
     debug!("{} {}", req.method(), req.uri());
@@ -258,6 +281,10 @@ async fn handle_push_request(
     let push_token = match find_or_default!("type", "fcm") {
         "gcm" | "fcm" => PushToken::Fcm(FcmToken(find_or_bad_request!("token").to_string())),
         "apns" => PushToken::Apns(ApnsToken(find_or_bad_request!("token").to_string())),
+        "hms" => PushToken::Hms {
+            token: HmsToken(find_or_bad_request!("token").to_string()),
+            subtype: find_or_bad_request!("subtype").to_string(),
+        },
         other => {
             warn!("Got push request with invalid token type: {}", other);
             return Ok(responses::bad_request("Invalid or missing parameters"));
@@ -348,6 +375,28 @@ async fn handle_push_request(
             )
             .await
         }
+        PushToken::Hms {
+            ref token,
+            ref subtype,
+        } => match hms_contexts.get(subtype) {
+            // We found a context for this subtype
+            Some(context) => {
+                hms::send_push(
+                    &*context,
+                    token,
+                    version,
+                    &session_public_key,
+                    affiliation,
+                    ttl,
+                )
+                .await
+            }
+            // No config found for this subtype
+            None => Err(SendPushError::ProcessingClientError(format!(
+                "Unknown HMS subtype: {}",
+                subtype
+            ))),
+        },
     };
 
     // Log to InfluxDB
@@ -377,6 +426,7 @@ async fn handle_push_request(
                     SendPushError::SendError(_) => StatusCode::BAD_GATEWAY,
                     SendPushError::ProcessingClientError(_) => StatusCode::BAD_REQUEST,
                     SendPushError::ProcessingRemoteError(_) => StatusCode::BAD_GATEWAY,
+                    SendPushError::AuthError(_) => StatusCode::INTERNAL_SERVER_ERROR,
                     SendPushError::Other(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 })
                 .header(CONTENT_TYPE, "text/plain")
@@ -404,6 +454,7 @@ impl Service<Request<Body>> for PushHandler {
         let fcm_api_key = self.fcm_api_key.clone();
         let apns_client_prod = self.apns_client_prod.clone();
         let apns_client_sbox = self.apns_client_sbox.clone();
+        let hms_contexts = self.hms_contexts.clone();
         let influxdb = self.influxdb.clone();
         let fut = async move {
             let res = handle_push_request(
@@ -412,6 +463,7 @@ impl Service<Request<Body>> for PushHandler {
                 fcm_api_key,
                 apns_client_prod,
                 apns_client_sbox,
+                hms_contexts,
                 influxdb,
             )
             .await;
@@ -476,6 +528,7 @@ mod tests {
             fcm_api_key: "aassddff".into(),
             apns_client_prod: Arc::new(Mutex::new(apns_client_prod)),
             apns_client_sbox: Arc::new(Mutex::new(apns_client_sbox)),
+            hms_contexts: Arc::new(HashMap::new()),
             influxdb: None,
         }
     }

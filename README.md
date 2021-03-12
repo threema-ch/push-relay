@@ -1,10 +1,15 @@
-# FCM/APNs Push Relay
+# Push Relay
 
 [![CI][ci-badge]][ci]
 [![License][license-badge]][license]
 
-This server accepts push requests via HTTP and notifies the Google FCM / Apple
-APNs push services.
+This server accepts push requests via HTTP and relays those requests to the appropriate push backends.
+
+Supported backends:
+
+- Google FCM
+- Apple APNs
+- Huawei HMS
 
 ## Request Format
 
@@ -13,7 +18,8 @@ APNs push services.
 
 Request keys:
 
-- `type`: Either `fcm` or `apns`
+- `type`: Either `fcm`, `hms` or `apns`
+- `subtype` (HMS only): can be used to differentiate between multiple named configs
 - `token`: The device push token
 - `session`: SHA256 hash of public permanent key of the initiator
 - `version`: Threema Web protocol version
@@ -30,13 +36,15 @@ Examples:
         -d "type=fcm&token=asdf&session=123deadbeef&version=3"
     curl -X POST -H "Origin: https://localhost" localhost:3000/push \
         -d "type=apns&token=asdf&session=123deadbeef&version=3&bundleid=com.example.app&endpoint=s"
+    curl -X POST -H "Origin: https://localhost" localhost:3000/push \
+        -d "type=hms&subtype=consumer&token=asdf&session=123deadbeef&version=3"
 
 Possible response codes:
 
 - `HTTP 204 (No Content)`: Request was processed successfully
 - `HTTP 400 (Bad Request)`: Invalid or missing POST parameters (including expired push tokens)
 - `HTTP 500 (Internal Server Error)`: Processing of push request failed on the Push Relay server
-- `HTTP 502 (Bad Gateway)`: Processing of push request failed on the FCM or APNs server
+- `HTTP 502 (Bad Gateway)`: Processing of push request failed on the FCM, HMS or APNs server
 
 ## Push Payload
 
@@ -48,9 +56,9 @@ The payload format looks like this:
 - `wct`: Unix epoch timestamp of the request in seconds, `i64`
 - `wcv`: Protocol version, `u16`
 
-### FCM
+### FCM / HMS
 
-The FCM message contains the payload data as specified above.
+The FCM and HMS messages contain the payload data as specified above.
 
 ### APNs
 
@@ -59,8 +67,7 @@ above.
 
 ## Running
 
-You need the Rust compiler (1.49 or higher). First, create a `config.toml` file
-that looks like this:
+You need the Rust compiler. First, create a `config.toml` file that looks like this:
 
     [fcm]
     api_key = "your-api-key"
@@ -69,6 +76,16 @@ that looks like this:
     keyfile = "your-keyfile.p8"
     key_id = "AB123456XY"
     team_id = "CD987654YZ"
+
+To support HMS as well, you need to add one or more named HMS config sections.
+
+    [hms.credentials_a]
+    client_id = "your-client-id"
+    client_secret = "your-client-secret"
+
+    [hms.credentials_b]
+    client_id = "your-client-id"
+    client_secret = "your-client-secret"
 
 If you want to log the pushes to InfluxDB, add the following section:
 
@@ -89,7 +106,7 @@ Then simply run
 
 - Always create a build in release mode: `cargo build --release`
 - Use a reverse proxy with proper TLS termination (e.g. Nginx)
-- Set `RUST_LOG=push_relay=info,hyper=info,a2=info` env variable
+- Set `RUST_LOG=info` env variable
 
 ## Testing
 
