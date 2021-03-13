@@ -1,41 +1,41 @@
-use std::borrow::Cow;
-use std::convert::Into;
-use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::{
+    borrow::Cow,
+    convert::Into,
+    future::Future,
+    net::SocketAddr,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+};
 
 use a2::client::{Client as ApnsClient, Endpoint};
 use a2::CollapseId;
-use futures::future::{self, Future, FutureResult};
-use futures::Stream;
-use http::header::{CONTENT_LENGTH, CONTENT_TYPE};
+use futures::future::{BoxFuture, FutureExt};
 use http::status::StatusCode;
-use http::{Request, Response};
-use hyper::server::Server;
-use hyper::service::Service;
-use hyper::{Body, Chunk, Method};
-use tokio_core::reactor::Core;
+use hyper::{
+    body::{self, Body, Bytes},
+    header::CONTENT_TYPE,
+    server::{conn::AddrStream, Server},
+    service::{make_service_fn, Service},
+    Method, Request, Response,
+};
+use tokio::sync::Mutex;
 use url::form_urlencoded;
 
 use crate::config::Config;
 use crate::errors::{InfluxdbError, PushRelayError, SendPushError, ServiceError};
 use crate::influxdb::Influxdb;
-use crate::push::{apns, fcm};
-use crate::push::{ApnsToken, FcmToken, PushToken};
+use crate::push::{apns, fcm, ApnsToken, FcmToken, PushToken};
 
 static COLLAPSE_KEY_PREFIX: &str = "relay";
 static TTL_DEFAULT: u32 = 90;
 
 /// Start the server and run infinitely.
-pub fn serve(
+pub async fn serve(
     config: Config,
     apns_api_key: &[u8],
     listen_on: SocketAddr,
 ) -> Result<(), PushRelayError> {
-    // TODO: CSRF
-
-    // Create reactor loop
-    let mut core = Core::new().expect("Could not start event loop");
-
     // Destructure config
     let Config {
         fcm,
@@ -60,49 +60,51 @@ pub fn serve(
     // Create InfluxDB client
     let influxdb = influxdb.map(|c| {
         Arc::new(
-            Influxdb::init(c.connection_string, &c.user, &c.pass, c.db)
+            Influxdb::new(c.connection_string, &c.user, &c.pass, c.db)
                 .expect("Failed to create Influxdb instance"),
         )
     });
 
     // Initialize InfluxDB
     if let Some(ref db) = influxdb {
-        fn log_started(core: &mut Core, db: &Influxdb) {
-            if let Err(e) = core.run(db.log_started()) {
-                match e {
-                    InfluxdbError::DatabaseNotFound => {
-                        warn!("InfluxDB database does not yet exist. Create it...");
-                        match core.run(db.create_db()) {
-                            Ok(_) => log_started(core, db),
-                            Err(e) => error!("Could not create InfluxDB database: {}", e),
+        fn log_started(db: &Influxdb) -> BoxFuture<'_, ()> {
+            async move {
+                if let Err(e) = db.log_started().await {
+                    match e {
+                        InfluxdbError::DatabaseNotFound => {
+                            warn!("InfluxDB database does not yet exist. Create it...");
+                            match db.create_db().await {
+                                Ok(_) => log_started(db).await,
+                                Err(e) => error!("Could not create InfluxDB database: {}", e),
+                            }
                         }
+                        other => error!("Could not log starting event to InfluxDB: {}", other),
                     }
-                    other => error!("Could not log starting event to InfluxDB: {}", other),
-                }
-            };
+                };
+            }
+            .boxed()
         };
         debug!("Sending stats to InfluxDB");
-        log_started(&mut core, db);
+        log_started(db).await;
     } else {
         debug!("Not using InfluxDB logging");
     };
 
-    // Service function
-    let new_service = move || {
-        let future: FutureResult<PushHandler, ServiceError> = future::ok(PushHandler {
+    // Create server
+    let make_svc = make_service_fn(|_conn: &AddrStream| {
+        let service = PushHandler {
             fcm_api_key: fcm.api_key.clone(),
             apns_client_prod: apns_client_prod.clone(),
             apns_client_sbox: apns_client_sbox.clone(),
             influxdb: influxdb.clone(),
-        });
-        future
-    };
+        };
+        async move { Ok::<_, ServiceError>(service) }
+    });
+    let server = Server::bind(&listen_on).serve(make_svc);
 
-    // Create server
-    let server = Server::bind(&listen_on).serve(new_service);
-
-    // Start server
-    core.run(server).map_err(Into::into)
+    // Run until completion
+    server.await?;
+    Ok(())
 }
 
 /// The server endpoint that accepts incoming push requests.
@@ -113,303 +115,308 @@ pub struct PushHandler {
     influxdb: Option<Arc<Influxdb>>,
 }
 
-impl Service for PushHandler {
-    // Boilerplate for hooking up hyper's server types
-    type ReqBody = Body;
-    type ResBody = Body;
-    type Error = ServiceError;
+mod responses {
+    use super::*;
 
-    // The future representing the eventual response
-    type Future = Box<dyn Future<Item = Response<Self::ResBody>, Error = Self::Error> + Send>;
+    /// Return a generic "400 bad request" response.
+    pub fn bad_request(body: impl Into<Body>) -> Response<Body> {
+        Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .header(CONTENT_TYPE, "text/plain")
+            .body(body.into())
+            .unwrap()
+    }
 
-    fn call(&mut self, req: Request<Self::ResBody>) -> Self::Future {
-        debug!("{} {}", req.method(), req.uri());
+    /// Return a generic "404 not found" response.
+    pub fn not_found() -> Response<Body> {
+        Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .header(CONTENT_TYPE, "text/plain")
+            .body(Body::from("Not found"))
+            .unwrap()
+    }
 
-        // Verify path
-        if req.uri().path() != "/push" {
-            return Box::new(future::ok(
-                Response::builder()
-                    .status(StatusCode::NOT_FOUND)
-                    .body(Body::empty())
-                    .unwrap(),
-            ));
+    /// Return a generic "405 method not allowed" response.
+    pub fn method_not_allowed() -> Response<Body> {
+        Response::builder()
+            .status(StatusCode::METHOD_NOT_ALLOWED)
+            .header(CONTENT_TYPE, "text/plain")
+            .body(Body::from("Method not allowed"))
+            .unwrap()
+    }
+
+    /// Return a generic "500 internal server error" response.
+    pub fn internal_server_error() -> Response<Body> {
+        Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .header(CONTENT_TYPE, "text/plain")
+            .body(Body::from("Internal server error"))
+            .unwrap()
+    }
+}
+
+/// Main push handling entry point.
+///
+/// Handle a request, return a response.
+async fn handle_push_request(
+    req: Request<Body>,
+    fcm_api_key: String,
+    apns_client_prod: Arc<Mutex<ApnsClient>>,
+    apns_client_sbox: Arc<Mutex<ApnsClient>>,
+    influxdb: Option<Arc<Influxdb>>,
+) -> Result<Response<Body>, ServiceError> {
+    debug!("{} {}", req.method(), req.uri());
+
+    // Verify path
+    if req.uri().path() != "/push" {
+        return Ok(responses::not_found());
+    }
+
+    // Verify method
+    if req.method() != Method::POST {
+        return Ok(responses::method_not_allowed());
+    }
+
+    // Verify content type
+    let content_type = req
+        .headers()
+        .get(CONTENT_TYPE)
+        .and_then(|h| h.to_str().ok());
+    match content_type {
+        Some(ct) if ct.starts_with("application/x-www-form-urlencoded") => {}
+        Some(ct) => {
+            warn!("Bad request, invalid content type: {}", ct);
+            return Ok(responses::bad_request(format!(
+                "Invalid content type: {}",
+                ct
+            )));
         }
-
-        // Verify method
-        if req.method() != Method::POST {
-            return Box::new(future::ok(
-                Response::builder()
-                    .status(StatusCode::METHOD_NOT_ALLOWED)
-                    .body(Body::empty())
-                    .unwrap(),
-            ));
+        None => {
+            warn!("Bad request, missing content type");
+            return Ok(responses::bad_request("Missing content type"));
         }
+    }
 
-        /// Create a "bad request" response.
-        macro_rules! bad_request {
-            ($text:expr) => {{
-                warn!("Returning \"bad request\" response: {}", $text);
-                Box::new(future::ok(
-                    Response::builder()
-                        .status(StatusCode::BAD_REQUEST)
-                        .header(CONTENT_TYPE, "text/plain")
-                        .header(CONTENT_LENGTH, &*$text.len().to_string())
-                        .body(Body::from($text))
-                        .unwrap(),
-                )) as Box<dyn Future<Item = _, Error = ServiceError> + Send>
-            }};
+    // Parse request body
+    let body: Bytes = match body::to_bytes(req.into_body()).await {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            error!("Could not convert body to bytes: {}", e);
+            return Ok(responses::internal_server_error());
         }
+    };
+    let parsed = form_urlencoded::parse(&body).collect::<Vec<_>>();
 
-        /// Create an "internal server error" response.
-        macro_rules! server_error {
-            ($text:expr) => {{
-                warn!("Returning \"invalid server error\" response: {}", $text);
-                Box::new(future::ok(
-                    Response::builder()
-                        .status(StatusCode::INTERNAL_SERVER_ERROR)
-                        .body(Body::empty())
-                        .unwrap(),
-                ))
-            }};
-        }
+    // Validate parameters
+    if parsed.is_empty() {
+        return Ok(responses::bad_request("Invalid or missing parameters"));
+    }
 
-        // Verify content type
-        {
-            let content_type = req
-                .headers()
-                .get(CONTENT_TYPE)
-                .and_then(|h| h.to_str().ok());
-            match content_type {
-                Some(ct) if ct.starts_with("application/x-www-form-urlencoded") => {}
-                Some(ct) => return bad_request!(format!("Invalid content type: {}", ct)),
-                None => return bad_request!("Missing content type"),
+    /// Iterate over parameters and find first matching key.
+    /// Return an option.
+    macro_rules! find {
+        ($name:expr) => {
+            parsed
+                .iter()
+                .find(|&&(ref k, _)| k == $name)
+                .map(|&(_, ref v)| v)
+        };
+    }
+
+    /// Iterate over parameters and find first matching key.
+    /// If the key is not found, then return a HTTP 400 response.
+    macro_rules! find_or_bad_request {
+        ($name:expr) => {
+            match find!($name) {
+                Some(v) => v,
+                None => return Ok(responses::bad_request("Invalid or missing parameters")),
             }
-        } // Waiting for NLL
+        };
+    }
 
-        // Parse request body
-        let body = req.into_body();
-        let fcm_api_key_clone = self.fcm_api_key.clone();
-        let apns_client_prod_clone = self.apns_client_prod.clone();
-        let apns_client_sbox_clone = self.apns_client_sbox.clone();
-        let influxdb_clone = self.influxdb.clone();
+    /// Iterate over parameters and find first matching key.
+    /// If the key is not found, return a default.
+    macro_rules! find_or_default {
+        ($name:expr, $default:expr) => {
+            match find!($name) {
+                Some(v) => v,
+                None => $default,
+            }
+        };
+    }
 
-        let response_future = body
-            // Hyper supports streamed requests, so we first need to
-            // concatenate chunks until the request body is complete.
-            .concat2()
-            .map_err(|e| ServiceError::new(e.to_string()))
-            // Once the body is complete, process it
-            // Allow high cognitive complexity for now. The code should get
-            // simpler in the future with async / await.
-            .and_then(
-                #[allow(clippy::cognitive_complexity)]
-                move |body: Chunk| {
-                    let parsed = form_urlencoded::parse(&body).collect::<Vec<_>>();
+    // Get parameters
+    let push_token = match find_or_default!("type", "fcm") {
+        "gcm" | "fcm" => PushToken::Fcm(FcmToken(find_or_bad_request!("token").to_string())),
+        "apns" => PushToken::Apns(ApnsToken(find_or_bad_request!("token").to_string())),
+        other => {
+            warn!("Got push request with invalid token type: {}", other);
+            return Ok(responses::bad_request("Invalid or missing parameters"));
+        }
+    };
+    let session_public_key = find_or_bad_request!("session");
+    let version_string = find_or_bad_request!("version");
+    let version: u16 = match version_string.trim().parse::<u16>() {
+        Ok(parsed) => parsed,
+        Err(e) => {
+            warn!("Got push request with invalid version param: {:?}", e);
+            return Ok(responses::bad_request("Invalid or missing parameters"));
+        }
+    };
+    let affiliation = find!("affiliation").map(Cow::as_ref);
+    let ttl_string = find!("ttl").map(|ttl_str| ttl_str.trim().parse());
+    let ttl: u32 = match ttl_string {
+        // Parsing as u32 succeeded
+        Some(Ok(val)) => val,
+        // Parsing as u32 failed
+        Some(Err(_)) => return Ok(responses::bad_request("Invalid or missing parameters")),
+        // No TTL value was specified
+        None => TTL_DEFAULT,
+    };
+    let collapse_key: Option<String> =
+        find!("collapse_key").map(|key| format!("{}.{}", COLLAPSE_KEY_PREFIX, key));
+    #[allow(clippy::match_wildcard_for_single_variants)]
+    let (bundle_id, endpoint, collapse_id) = match push_token {
+        PushToken::Apns(_) => {
+            let bundle_id = Some(find_or_bad_request!("bundleid"));
+            let endpoint_str = find_or_bad_request!("endpoint");
+            let endpoint = Some(match endpoint_str.as_ref() {
+                "p" => Endpoint::Production,
+                "s" => Endpoint::Sandbox,
+                _ => return Ok(responses::bad_request("Invalid or missing parameters")),
+            });
+            let collapse_id = match collapse_key.as_deref().map(CollapseId::new) {
+                Some(Ok(id)) => Some(id),
+                Some(Err(_)) => return Ok(responses::bad_request("Invalid or missing parameters")),
+                None => None,
+            };
+            (bundle_id, endpoint, collapse_id)
+        }
+        _ => (None, None, None),
+    };
 
-                    // Validate parameters
-                    if parsed.is_empty() {
-                        return bad_request!("Invalid or missing parameters");
-                    }
-
-                    /// Iterate over parameters and find first matching key.
-                    /// Return an optional.
-                    macro_rules! find {
-                        ($name:expr) => {
-                            parsed
-                                .iter()
-                                .find(|&&(ref k, _)| k == $name)
-                                .map(|&(_, ref v)| v)
-                        };
-                    }
-
-                    /// Iterate over parameters and find first matching key.
-                    /// If the key is not found, then return a HTTP 400 response.
-                    macro_rules! find_or_bad_request {
-                        ($name:expr) => {
-                            match find!($name) {
-                                Some(v) => v,
-                                None => return bad_request!("Invalid or missing parameters"),
-                            }
-                        };
-                    }
-
-                    /// Iterate over parameters and find first matching key.
-                    /// If the key is not found, return a default.
-                    macro_rules! find_or_default {
-                        ($name:expr, $default:expr) => {
-                            match find!($name) {
-                                Some(v) => v,
-                                None => $default,
-                            }
-                        };
-                    }
-
-                    // Get parameters
-                    let push_token = match find_or_default!("type", "fcm") {
-                        "gcm" | "fcm" => {
-                            PushToken::Fcm(FcmToken(find_or_bad_request!("token").to_string()))
-                        }
-                        "apns" => {
-                            PushToken::Apns(ApnsToken(find_or_bad_request!("token").to_string()))
-                        }
-                        other => {
-                            warn!("Got push request with invalid token type: {}", other);
-                            return bad_request!("Invalid or missing parameters");
-                        }
-                    };
-                    let session_public_key = find_or_bad_request!("session");
-                    let version_string = find_or_bad_request!("version");
-                    let version: u16 = match version_string.trim().parse::<u16>() {
-                        Ok(parsed) => parsed,
-                        Err(e) => {
-                            warn!("Got push request with invalid version param: {:?}", e);
-                            return bad_request!("Invalid or missing parameters");
-                        }
-                    };
-                    let affiliation = find!("affiliation").map(Cow::as_ref);
-                    let ttl_string = find!("ttl").map(|ttl_str| ttl_str.trim().parse());
-                    let ttl: u32 = match ttl_string {
-                        // Parsing as u32 succeeded
-                        Some(Ok(val)) => val,
-                        // Parsing as u32 failed
-                        Some(Err(_)) => return bad_request!("Invalid or missing parameters"),
-                        // No TTL value was specified
-                        None => TTL_DEFAULT,
-                    };
-                    let collapse_key: Option<String> =
-                        find!("collapse_key").map(|key| format!("{}.{}", COLLAPSE_KEY_PREFIX, key));
-                    #[allow(clippy::match_wildcard_for_single_variants)]
-                    let (bundle_id, endpoint, collapse_id) = match push_token {
-                        PushToken::Apns(_) => {
-                            let bundle_id = Some(find_or_bad_request!("bundleid"));
-                            let endpoint_str = find_or_bad_request!("endpoint");
-                            let endpoint = Some(match endpoint_str.as_ref() {
-                                "p" => Endpoint::Production,
-                                "s" => Endpoint::Sandbox,
-                                _ => return bad_request!("Invalid or missing parameters"),
-                            });
-                            let collapse_id = match collapse_key.as_deref().map(CollapseId::new) {
-                                Some(Ok(id)) => Some(id),
-                                Some(Err(_)) => {
-                                    return bad_request!("Invalid or missing parameters")
-                                }
-                                None => None,
-                            };
-                            (bundle_id, endpoint, collapse_id)
-                        }
-                        _ => (None, None, None),
-                    };
-
-                    // Send push notification
-                    info!(
-                        "Sending push message to {} for session {} [v{}]",
-                        push_token.abbrev(),
-                        session_public_key,
-                        version
-                    );
-                    let push_future = match push_token {
-                        PushToken::Fcm(ref token) => fcm::send_push(
-                            &fcm_api_key_clone,
-                            token,
-                            version,
-                            &session_public_key,
-                            affiliation,
-                            collapse_key.as_deref(),
-                            fcm::Priority::High,
-                            ttl,
-                        ),
-                        PushToken::Apns(ref token) => apns::send_push(
-                            &*match endpoint.unwrap() {
-                                Endpoint::Production => {
-                                    debug!("Using production endpoint");
-                                    match apns_client_prod_clone.lock() {
-                                        Ok(guard) => guard,
-                                        Err(_) => {
-                                            return server_error!(
-                                                "Could not lock apns_client_prod_clone mutex"
-                                            )
-                                        }
-                                    }
-                                }
-                                Endpoint::Sandbox => {
-                                    debug!("Using sandbox endpoint");
-                                    match apns_client_sbox_clone.lock() {
-                                        Ok(guard) => guard,
-                                        Err(_) => {
-                                            return server_error!(
-                                                "Could not lock apns_client_sbox_clone mutex"
-                                            )
-                                        }
-                                    }
-                                }
-                            },
-                            token,
-                            bundle_id.expect("bundle_id is None"),
-                            version,
-                            &session_public_key,
-                            affiliation,
-                            collapse_id,
-                            ttl,
-                        ),
-                    };
-
-                    Box::new(
-                        push_future
-                            .then(move |push_res| {
-                                let influxdb_future = match influxdb_clone {
-                                    Some(influxdb) => future::Either::A(influxdb.log_push(
-                                        push_token.abbrev(),
-                                        version,
-                                        push_res.is_ok(),
-                                    )),
-                                    None => future::Either::B(future::ok(())),
-                                };
-                                influxdb_future.then(|influxdb_res| {
-                                    if let Err(e) = influxdb_res {
-                                        warn!("Could not submit stats to InfluxDB: {}", e);
-                                    }
-                                    push_res
-                                })
-                            })
-                            .and_then(|_| {
-                                debug!("Success!");
-                                future::ok(
-                                    Response::builder()
-                                        .status(StatusCode::NO_CONTENT)
-                                        .header(CONTENT_TYPE, "text/plain")
-                                        .body(Body::empty())
-                                        .unwrap(),
-                                )
-                            })
-                            .or_else(|e: SendPushError| {
-                                warn!("Error: {}", e);
-                                let body = "Push not successful";
-                                future::ok(
-                                    Response::builder()
-                                        .status(match e {
-                                            SendPushError::SendError(_) => StatusCode::BAD_GATEWAY,
-                                            SendPushError::ProcessingClientError(_) => {
-                                                StatusCode::BAD_REQUEST
-                                            }
-                                            SendPushError::ProcessingRemoteError(_) => {
-                                                StatusCode::BAD_GATEWAY
-                                            }
-                                            SendPushError::Other(_) => {
-                                                StatusCode::INTERNAL_SERVER_ERROR
-                                            }
-                                        })
-                                        .header(CONTENT_LENGTH, &*body.len().to_string())
-                                        .header(CONTENT_TYPE, "text/plain")
-                                        .body(Body::from(body))
-                                        .unwrap(),
-                                )
-                            }),
-                    )
-                },
+    // Send push notification
+    info!(
+        "Sending push message to {} for session {} [v{}]",
+        push_token.abbrev(),
+        session_public_key,
+        version
+    );
+    let push_result = match push_token {
+        PushToken::Fcm(ref token) => {
+            fcm::send_push(
+                &fcm_api_key,
+                token,
+                version,
+                &session_public_key,
+                affiliation,
+                collapse_key.as_deref(),
+                ttl,
             )
-            .map_err(|e| ServiceError::new(e.to_string()));
+            .await
+        }
+        PushToken::Apns(ref token) => {
+            let client = match endpoint.unwrap() {
+                Endpoint::Production => {
+                    debug!("Using production endpoint");
+                    apns_client_prod.lock().await
+                }
+                Endpoint::Sandbox => {
+                    debug!("Using sandbox endpoint");
+                    apns_client_sbox.lock().await
+                }
+            };
+            apns::send_push(
+                &*client,
+                token,
+                bundle_id.expect("bundle_id is None"),
+                version,
+                &session_public_key,
+                affiliation,
+                collapse_id,
+                ttl,
+            )
+            .await
+        }
+    };
 
-        Box::new(response_future)
+    // Log to InfluxDB
+    if let Some(influxdb) = influxdb {
+        let log_result = influxdb
+            .log_push(push_token.abbrev(), version, push_result.is_ok())
+            .await;
+        if let Err(e) = log_result {
+            warn!("Could not submit stats to InfluxDB: {}", e);
+        }
+    }
+
+    // Handle result
+    match push_result {
+        Ok(()) => {
+            debug!("Success!");
+            Ok(Response::builder()
+                .status(StatusCode::NO_CONTENT)
+                .header(CONTENT_TYPE, "text/plain")
+                .body(Body::empty())
+                .unwrap())
+        }
+        Err(e) => {
+            warn!("Error: {}", e);
+            Ok(Response::builder()
+                .status(match e {
+                    SendPushError::SendError(_) => StatusCode::BAD_GATEWAY,
+                    SendPushError::ProcessingClientError(_) => StatusCode::BAD_REQUEST,
+                    SendPushError::ProcessingRemoteError(_) => StatusCode::BAD_GATEWAY,
+                    SendPushError::Other(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                })
+                .header(CONTENT_TYPE, "text/plain")
+                .body(Body::from("Push not successful"))
+                .unwrap())
+        }
+    }
+}
+
+impl Service<Request<Body>> for PushHandler {
+    type Response = Response<Body>;
+    type Error = ServiceError;
+    #[allow(clippy::type_complexity)]
+    type Future =
+        Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send + 'static>>;
+
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    /// Main service entry point.
+    fn call(&mut self, req: Request<Body>) -> Self::Future {
+        // Delegate to async fn
+        let fcm_api_key = self.fcm_api_key.clone();
+        let apns_client_prod = self.apns_client_prod.clone();
+        let apns_client_sbox = self.apns_client_sbox.clone();
+        let influxdb = self.influxdb.clone();
+        let fut = async move {
+            let res = handle_push_request(
+                req,
+                fcm_api_key,
+                apns_client_prod,
+                apns_client_sbox,
+                influxdb,
+            )
+            .await;
+            match res {
+                Ok(ref resp) => {
+                    let status = resp.status();
+                    if status.is_success() {
+                        debug!("Returning HTTP {}", status);
+                    } else {
+                        info!("Returning HTTP {}", status);
+                    }
+                }
+                Err(ref e) => warn!("Request processing failed: {}", e),
+            }
+            res
+        };
+        Box::pin(fut)
     }
 }
 
@@ -427,8 +434,8 @@ mod tests {
     use self::openssl::ec::{EcGroup, EcKey};
     use self::openssl::nid::Nid;
 
-    fn get_body(core: &mut Core, body: Body) -> String {
-        let bytes = core.run(body.concat2()).unwrap();
+    async fn get_body(body: Body) -> String {
+        let bytes = body::to_bytes(body).await.unwrap();
         ::std::str::from_utf8(&bytes).unwrap().to_string()
     }
 
@@ -439,8 +446,7 @@ mod tests {
         key.private_key_to_pem().unwrap()
     }
 
-    fn get_handler() -> (Core, PushHandler) {
-        let core = Core::new().unwrap();
+    fn get_handler() -> PushHandler {
         let api_key = get_apns_test_key();
         let apns_client_prod = apns::create_client(
             Endpoint::Production,
@@ -452,118 +458,117 @@ mod tests {
         let apns_client_sbox =
             apns::create_client(Endpoint::Sandbox, api_key.as_slice(), "team_id", "key_id")
                 .unwrap();
-        let handler = PushHandler {
+        PushHandler {
             fcm_api_key: "aassddff".into(),
             apns_client_prod: Arc::new(Mutex::new(apns_client_prod)),
             apns_client_sbox: Arc::new(Mutex::new(apns_client_sbox)),
             influxdb: None,
-        };
-        (core, handler)
+        }
     }
 
     /// Handle invalid paths
-    #[test]
-    fn test_invalid_path() {
-        let (mut core, mut handler) = get_handler();
+    #[tokio::test]
+    async fn test_invalid_path() {
+        let mut handler = get_handler();
 
         let req = Request::post("/larifari").body(Body::empty()).unwrap();
-        let resp = core.run(handler.call(req)).unwrap();
+        let resp = handler.call(req).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
     /// Handle invalid methods
-    #[test]
-    fn test_invalid_method() {
-        let (mut core, mut handler) = get_handler();
+    #[tokio::test]
+    async fn test_invalid_method() {
+        let mut handler = get_handler();
 
         let req = Request::get("/push").body(Body::empty()).unwrap();
-        let resp = core.run(handler.call(req)).unwrap();
+        let resp = handler.call(req).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 
     /// Handle invalid request content type
-    #[test]
-    fn test_invalid_contenttype() {
-        let (mut core, mut handler) = get_handler();
+    #[tokio::test]
+    async fn test_invalid_contenttype() {
+        let mut handler = get_handler();
 
         let req = Request::post("/push")
             .header(CONTENT_TYPE, "text/plain")
             .body(Body::empty())
             .unwrap();
-        let resp = core.run(handler.call(req)).unwrap();
+        let resp = handler.call(req).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let body = get_body(&mut core, resp.into_body());
+        let body = get_body(resp.into_body()).await;
         assert_eq!(&body, "Invalid content type: text/plain");
     }
 
     /// Handle missing request content type
-    #[test]
-    fn test_missing_contenttype() {
-        let (mut core, mut handler) = get_handler();
+    #[tokio::test]
+    async fn test_missing_contenttype() {
+        let mut handler = get_handler();
 
         let req = Request::post("/push").body(Body::empty()).unwrap();
-        let resp = core.run(handler.call(req)).unwrap();
+        let resp = handler.call(req).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let body = get_body(&mut core, resp.into_body());
+        let body = get_body(resp.into_body()).await;
         assert_eq!(&body, "Missing content type");
     }
 
     /// A request without parameters should result in a HTTP 400 response.
-    #[test]
-    fn test_no_params() {
-        let (mut core, mut handler) = get_handler();
+    #[tokio::test]
+    async fn test_no_params() {
+        let mut handler = get_handler();
 
         let req = Request::post("/push")
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
             .body(Body::empty())
             .unwrap();
-        let resp = core.run(handler.call(req)).unwrap();
+        let resp = handler.call(req).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let body = get_body(&mut core, resp.into_body());
+        let body = get_body(resp.into_body()).await;
         assert_eq!(&body, "Invalid or missing parameters");
     }
 
     /// A request with missing parameters should result in a HTTP 400 response.
-    #[test]
-    fn test_missing_params() {
-        let (mut core, mut handler) = get_handler();
+    #[tokio::test]
+    async fn test_missing_params() {
+        let mut handler = get_handler();
 
         let req = Request::post("/push")
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
             .body("token=1234".into())
             .unwrap();
-        let resp = core.run(handler.call(req)).unwrap();
+        let resp = handler.call(req).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let body = get_body(&mut core, resp.into_body());
+        let body = get_body(resp.into_body()).await;
         assert_eq!(&body, "Invalid or missing parameters");
     }
 
     /// A request with missing parameters should result in a HTTP 400 response.
-    #[test]
-    fn test_missing_params_apns() {
-        let (mut core, mut handler) = get_handler();
+    #[tokio::test]
+    async fn test_missing_params_apns() {
+        let mut handler = get_handler();
 
         let req = Request::post("/push")
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
             .body("type=apns&token=1234&session=123deadbeef&version=3".into())
             .unwrap();
-        let resp = core.run(handler.call(req)).unwrap();
+        let resp = handler.call(req).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let body = get_body(&mut core, resp.into_body());
+        let body = get_body(resp.into_body()).await;
         assert_eq!(&body, "Invalid or missing parameters");
     }
 
     /// A request with bad parameters should result in a HTTP 400 response.
-    #[test]
-    fn test_bad_endpoint() {
-        let (mut core, mut handler) = get_handler();
+    #[tokio::test]
+    async fn test_bad_endpoint() {
+        let mut handler = get_handler();
 
         let req = Request::post("/push")
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
@@ -572,48 +577,48 @@ mod tests {
                     .into(),
             )
             .unwrap();
-        let resp = core.run(handler.call(req)).unwrap();
+        let resp = handler.call(req).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let body = get_body(&mut core, resp.into_body());
+        let body = get_body(resp.into_body()).await;
         assert_eq!(&body, "Invalid or missing parameters");
     }
 
     /// A request wit missing parameters should result in a HTTP 400 response.
-    #[test]
-    fn test_bad_token_type() {
-        let (mut core, mut handler) = get_handler();
+    #[tokio::test]
+    async fn test_bad_token_type() {
+        let mut handler = get_handler();
 
         let req = Request::post("/push")
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
             .body("type=abc&token=aassddff&session=deadbeef&version=1".into())
             .unwrap();
-        let resp = core.run(handler.call(req)).unwrap();
+        let resp = handler.call(req).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let body = get_body(&mut core, resp.into_body());
+        let body = get_body(resp.into_body()).await;
         assert_eq!(&body, "Invalid or missing parameters");
     }
 
     /// A request with invalid TTL parameter should result in a HTTP 400 response.
-    #[test]
-    fn test_invalid_ttl() {
-        let (mut core, mut handler) = get_handler();
+    #[tokio::test]
+    async fn test_invalid_ttl() {
+        let mut handler = get_handler();
 
         let req = Request::post("/push")
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
             .body("type=fcm&token=aassddff&session=deadbeef&version=1&ttl=9999999999999999".into())
             .unwrap();
-        let resp = core.run(handler.call(req)).unwrap();
+        let resp = handler.call(req).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let body = get_body(&mut core, resp.into_body());
+        let body = get_body(resp.into_body()).await;
         assert_eq!(&body, "Invalid or missing parameters");
     }
 
-    #[test]
+    #[tokio::test]
     #[allow(clippy::useless_format)]
-    fn test_fcm_ok() {
+    async fn test_fcm_ok() {
         let to = "aassddff";
         let session = "deadbeef";
 
@@ -638,13 +643,13 @@ mod tests {
             )
             .create();
 
-        let (mut core, mut handler) = get_handler();
+        let mut handler = get_handler();
 
         let req = Request::post("/push")
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
             .body(format!("type=fcm&token={}&session={}&version=1", to, session).into())
             .unwrap();
-        let resp = core.run(handler.call(req)).unwrap();
+        let resp = handler.call(req).await.unwrap();
 
         // Ensure that the mock was properly called
         m.assert();
@@ -657,7 +662,7 @@ mod tests {
         );
     }
 
-    fn test_fcm_process_error(msg: &str, status_code: StatusCode) {
+    async fn test_fcm_process_error(msg: &str, status_code: StatusCode) {
         let _m = mock("POST", "/fcm/send")
             .with_status(200)
             .with_body(format!(
@@ -672,40 +677,40 @@ mod tests {
             ))
             .create();
 
-        let (mut core, mut handler) = get_handler();
+        let mut handler = get_handler();
 
         let req = Request::post("/push")
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
             .body("type=fcm&token=aassddff&session=deadbeef&version=1".into())
             .unwrap();
-        let resp = core.run(handler.call(req)).unwrap();
+        let resp = handler.call(req).await.unwrap();
 
         assert_eq!(resp.status(), status_code);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap().to_str().unwrap(),
             "text/plain",
         );
-        let body = get_body(&mut core, resp.into_body());
+        let body = get_body(resp.into_body()).await;
         assert_eq!(&body, "Push not successful");
     }
 
-    #[test]
-    fn test_fcm_not_registered() {
-        test_fcm_process_error("NotRegistered", StatusCode::BAD_REQUEST);
+    #[tokio::test]
+    async fn test_fcm_not_registered() {
+        test_fcm_process_error("NotRegistered", StatusCode::BAD_REQUEST).await;
     }
 
-    #[test]
-    fn test_fcm_missing_registration() {
-        test_fcm_process_error("MissingRegistration", StatusCode::BAD_REQUEST);
+    #[tokio::test]
+    async fn test_fcm_missing_registration() {
+        test_fcm_process_error("MissingRegistration", StatusCode::BAD_REQUEST).await;
     }
 
-    #[test]
-    fn test_fcm_internal_server_error() {
-        test_fcm_process_error("InternalServerError", StatusCode::BAD_GATEWAY);
+    #[tokio::test]
+    async fn test_fcm_internal_server_error() {
+        test_fcm_process_error("InternalServerError", StatusCode::BAD_GATEWAY).await;
     }
 
-    #[test]
-    fn test_fcm_unknown_error() {
-        test_fcm_process_error("YourBicycleWasStolen", StatusCode::INTERNAL_SERVER_ERROR);
+    #[tokio::test]
+    async fn test_fcm_unknown_error() {
+        test_fcm_process_error("YourBicycleWasStolen", StatusCode::INTERNAL_SERVER_ERROR).await;
     }
 }

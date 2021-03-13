@@ -2,7 +2,7 @@ use std::error;
 use std::fmt;
 
 use a2::error::Error as A2Error;
-use hyper::error::Error as HyperError;
+use hyper::Error as HyperError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -46,11 +46,6 @@ pub enum InfluxdbError {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ServiceError(String);
 
-impl ServiceError {
-    pub fn new(msg: String) -> Self {
-        Self(msg)
-    }
-}
 impl fmt::Display for ServiceError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "ServiceError: {}", self.0)
