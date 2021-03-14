@@ -72,4 +72,4 @@ jobs:
           toolchain: 1.49.0
           override: true
     - run: cargo install cargo-audit
-    - run: cargo audit --ignore RUSTSEC-2021-0020
+    - run: cargo audit

@@ -4,23 +4,15 @@
 //! service.
 
 #![deny(clippy::all)]
-#![warn(clippy::pedantic)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::manual_unwrap_or)]
-#![allow(clippy::map_err_ignore)]
-#![allow(clippy::match_same_arms)]
-#![allow(clippy::module_name_repetitions)]
-#![allow(clippy::non_ascii_literal)]
 #![allow(clippy::too_many_arguments)]
-#![allow(clippy::too_many_lines)]
+#![allow(clippy::manual_unwrap_or)]
 
 #[macro_use]
 extern crate log;
 
-#[macro_use]
-mod utils;
 mod config;
 mod errors;
+mod http_client;
 mod influxdb;
 mod push;
 mod server;
@@ -36,7 +28,8 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 const DESCRIPTION: &str =
     "This server accepts push requests via HTTP and notifies FCM/APNs push services.";
 
-fn main() {
+#[tokio::main(flavor = "multi_thread")]
+async fn main() {
     env_logger::init();
 
     let matches = App::new(NAME)
@@ -92,8 +85,9 @@ fn main() {
         });
 
     info!("Starting Push Relay Server {} on {}", VERSION, &addr);
-    server::serve(config, &apns_api_key, addr).unwrap_or_else(|e| {
-        error!("Could not start relay server: {}", e);
+
+    if let Err(e) = server::serve(config, &apns_api_key, addr).await {
+        error!("Server error: {}", e);
         process::exit(3);
-    });
+    }
 }
