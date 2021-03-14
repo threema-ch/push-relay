@@ -10,7 +10,7 @@ use serde_json as json;
 
 use crate::{
     errors::SendPushError,
-    http_client,
+    http_client::HttpClient,
     push::{FcmToken, ThreemaPayload},
 };
 
@@ -69,6 +69,7 @@ pub struct MessageResult {
 
 /// Send a FCM push notification.
 pub async fn send_push(
+    client: &HttpClient,
     api_key: &str,
     push_token: &FcmToken,
     version: u16,
@@ -86,10 +87,6 @@ pub async fn send_push(
         data,
     };
     trace!("Sending payload: {:#?}", payload);
-
-    // Create async HTTP client instance
-    // TODO: Reuse client, ensure in log that this works (including session resumption)
-    let client = http_client::make_client(90);
 
     // Encode payload
     let payload_string = json::to_string(&payload).expect("Could not encode JSON payload");

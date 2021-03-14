@@ -22,10 +22,13 @@ use hyper::{
 use tokio::sync::Mutex;
 use url::form_urlencoded;
 
-use crate::config::Config;
-use crate::errors::{InfluxdbError, PushRelayError, SendPushError, ServiceError};
-use crate::influxdb::Influxdb;
-use crate::push::{apns, fcm, ApnsToken, FcmToken, PushToken};
+use crate::{
+    config::Config,
+    errors::{InfluxdbError, PushRelayError, SendPushError, ServiceError},
+    http_client::{self, HttpClient},
+    influxdb::Influxdb,
+    push::{apns, fcm, ApnsToken, FcmToken, PushToken},
+};
 
 static COLLAPSE_KEY_PREFIX: &str = "relay";
 static TTL_DEFAULT: u32 = 90;
@@ -42,6 +45,9 @@ pub async fn serve(
         apns,
         influxdb,
     } = config;
+
+    // Create FCM HTTP client
+    let fcm_client = http_client::make_client(90);
 
     // Create APNs clients
     let apns_client_prod = Arc::new(Mutex::new(apns::create_client(
@@ -93,6 +99,7 @@ pub async fn serve(
     // Create server
     let make_svc = make_service_fn(|_conn: &AddrStream| {
         let service = PushHandler {
+            fcm_client: fcm_client.clone(),
             fcm_api_key: fcm.api_key.clone(),
             apns_client_prod: apns_client_prod.clone(),
             apns_client_sbox: apns_client_sbox.clone(),
@@ -109,6 +116,7 @@ pub async fn serve(
 
 /// The server endpoint that accepts incoming push requests.
 pub struct PushHandler {
+    fcm_client: HttpClient,
     fcm_api_key: String,
     apns_client_prod: Arc<Mutex<ApnsClient>>,
     apns_client_sbox: Arc<Mutex<ApnsClient>>,
@@ -160,6 +168,7 @@ mod responses {
 /// Handle a request, return a response.
 async fn handle_push_request(
     req: Request<Body>,
+    fcm_client: HttpClient,
     fcm_api_key: String,
     apns_client_prod: Arc<Mutex<ApnsClient>>,
     apns_client_sbox: Arc<Mutex<ApnsClient>>,
@@ -305,6 +314,7 @@ async fn handle_push_request(
     let push_result = match push_token {
         PushToken::Fcm(ref token) => {
             fcm::send_push(
+                &fcm_client,
                 &fcm_api_key,
                 token,
                 version,
@@ -390,6 +400,7 @@ impl Service<Request<Body>> for PushHandler {
     /// Main service entry point.
     fn call(&mut self, req: Request<Body>) -> Self::Future {
         // Delegate to async fn
+        let fcm_client = self.fcm_client.clone();
         let fcm_api_key = self.fcm_api_key.clone();
         let apns_client_prod = self.apns_client_prod.clone();
         let apns_client_sbox = self.apns_client_sbox.clone();
@@ -397,6 +408,7 @@ impl Service<Request<Body>> for PushHandler {
         let fut = async move {
             let res = handle_push_request(
                 req,
+                fcm_client,
                 fcm_api_key,
                 apns_client_prod,
                 apns_client_sbox,
@@ -447,6 +459,7 @@ mod tests {
     }
 
     fn get_handler() -> PushHandler {
+        let fcm_client = http_client::make_client(10);
         let api_key = get_apns_test_key();
         let apns_client_prod = apns::create_client(
             Endpoint::Production,
@@ -459,6 +472,7 @@ mod tests {
             apns::create_client(Endpoint::Sandbox, api_key.as_slice(), "team_id", "key_id")
                 .unwrap();
         PushHandler {
+            fcm_client,
             fcm_api_key: "aassddff".into(),
             apns_client_prod: Arc::new(Mutex::new(apns_client_prod)),
             apns_client_sbox: Arc::new(Mutex::new(apns_client_sbox)),
