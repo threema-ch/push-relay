@@ -145,7 +145,7 @@ impl From<&str> for HmsCode {
 }
 
 /// HMS OAuth2 credentials.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct HmsCredentials {
     /// The OAuth2 access token.
     access_token: String,
@@ -438,5 +438,81 @@ pub async fn send_push(
             "HMS push failed: {:?}",
             other
         ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use mockito::mock;
+
+    use crate::http_client;
+
+    mod context {
+        use super::*;
+
+        #[tokio::test]
+        async fn get_credentials() {
+            const CLIENT_ID: &str = "klient";
+            const CLIENT_SECRET: &str = "sehr-sekur";
+
+            // Set up context
+            let client = http_client::make_client(10);
+            let context = HmsContext::new(
+                client,
+                HmsConfig {
+                    client_id: CLIENT_ID.into(),
+                    client_secret: CLIENT_SECRET.into(),
+                },
+            );
+
+            // Mock HMS auth endpoint
+            let m = mock("POST", "/oauth2/v3/token")
+                .with_body(format!(
+                    "grant_type=client_credentials&client_id={}&client_secret={}",
+                    CLIENT_ID, CLIENT_SECRET
+                ))
+                .with_status(200)
+                .with_body(
+                    r#"{
+                        "access_token": "akssess",
+                        "expires_in": 3600,
+                        "token_type": "Bearer"
+                    }"#,
+                )
+                .create();
+
+            // No credentials yet
+            assert!(context.credentials.lock().await.is_none());
+
+            // Get new credentials
+            let credentials = context.get_active_credentials().await.unwrap();
+            m.assert();
+            assert!(context.credentials.lock().await.is_some());
+            assert_eq!(credentials.access_token, "akssess");
+            let remaining_validity = (credentials.expiration - Instant::now()).as_secs();
+            assert!(remaining_validity <= (3600 - 180));
+            assert!(remaining_validity > (3600 - 180 - 10));
+
+            // Get cached credentials
+            let credentials2 = context.get_active_credentials().await.unwrap();
+            m.assert(); // This fails if the endpoint is called twice
+            assert_eq!(credentials, credentials2);
+
+            // Refresh credentials
+            let m = m.expect(2);
+            context
+                .credentials
+                .lock()
+                .await
+                .as_mut()
+                .unwrap()
+                .expiration = Instant::now() - Duration::from_secs(3);
+            let credentials3 = context.get_active_credentials().await.unwrap();
+            m.assert();
+            let remaining_validity = (credentials3.expiration - Instant::now()).as_secs();
+            assert!(remaining_validity > (3600 - 180 - 10));
+        }
     }
 }
