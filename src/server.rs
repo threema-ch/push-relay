@@ -51,6 +51,9 @@ pub async fn serve(
         influxdb,
     } = config;
 
+    // Convert missing hms config to empty HashMap
+    let hms = hms.unwrap_or_else(HashMap::new);
+
     // Create FCM HTTP client
     let fcm_client = http_client::make_client(90);
 

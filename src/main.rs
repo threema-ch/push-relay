@@ -74,14 +74,17 @@ async fn main() {
     // Determine HMS credentials
     info!("Found FCM config");
     info!("Found APNs config");
-    if config.hms.is_empty() {
-        warn!("No HMS credentials found in config, HMS pushes cannot be handled");
-    } else {
-        info!(
-            "Found {} HMS config(s): {:?}",
-            config.hms.len(),
-            config.hms.keys().collect::<Vec<_>>()
-        );
+    match config.hms {
+        None => {
+            warn!("No HMS credentials found in config, HMS pushes cannot be handled");
+        }
+        Some(ref map) if map.is_empty() => {
+            warn!("No HMS credentials found in config, HMS pushes cannot be handled");
+        }
+        Some(ref map) => {
+            let keys = map.keys().collect::<Vec<_>>();
+            info!("Found {} HMS config(s): {:?}", map.len(), keys);
+        }
     }
 
     // Open and read APNs keyfile
