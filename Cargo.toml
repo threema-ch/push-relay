@@ -12,6 +12,7 @@ base64 = "0.13"
 chrono = "0.4"
 clap = "2"
 env_logger = "0.8"
+form_urlencoded = "1"
 futures = "0.3"
 hostname = "0.3"
 http = "0.2"
@@ -25,7 +26,6 @@ serde_json = "1.0.10"
 thiserror = "1"
 toml = "0.5"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"], default-features = false }
-url = "2"
 
 [dev-dependencies]
 mockito = "0.28"

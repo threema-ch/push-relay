@@ -796,6 +796,7 @@ dependencies = [
  "chrono",
  "clap",
  "env_logger",
+ "form_urlencoded",
  "futures",
  "hostname",
  "http",
@@ -811,7 +812,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "toml",
- "url",
 ]
 
 [[package]]

@@ -27,6 +27,10 @@ pub enum SendPushError {
     #[error("Push message could not be processed: {0}")]
     ProcessingClientError(String),
 
+    // Server authentication error. Retrying might help.
+    #[error("Authentication error: {0}")]
+    AuthError(String),
+
     #[error("Other: {0}")]
     Other(String),
 }

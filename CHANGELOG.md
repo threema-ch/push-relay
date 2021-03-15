@@ -14,6 +14,8 @@ Possible log types:
 
 ### Unreleased
 
+- [added] Support for HMS
+- [added] FCM: Support for connection reuse and TLS session resumption
 - [changed] The config file format was changed from INI to TOML and the default
   filename was changed from `config.ini` to `config.toml`. Since TOML is a
   superset of INI, the existing config should remain valid. But the change
