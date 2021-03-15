@@ -61,41 +61,10 @@ fn hms_push_url(app_id: &str) -> String {
     )
 }
 
-/// HMS push urgency.
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum Urgency {
-    High,
-    //Normal,
-}
-
-/// HMS push category.
-///
-/// Note: To be able to use these categories, you need to apply for special
-/// permission.
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum Category {
-    //PlayVoice,
-    Voip,
-}
-
-#[derive(Debug, Serialize)]
-pub struct AndroidConfig {
-    /// The urgency.
-    urgency: Urgency,
-    /// The push category.
-    category: Category,
-    /// Time to live in seconds.
-    ttl: u32,
-}
-
 #[derive(Debug, Serialize)]
 pub struct Message<'a> {
     /// The push payload.
     data: String,
-    /// Android message push control.
-    android: AndroidConfig,
     /// Push token(s) of the recipient(s).
     token: &'a [&'a str],
 }
@@ -349,17 +318,12 @@ pub async fn send_push(
     version: u16,
     session: &str,
     affiliation: Option<&str>,
-    ttl: u32,
+    _ttl: u32, // Not currently supported by HMS
 ) -> Result<(), SendPushError> {
     let threema_payload = ThreemaPayload::new(session, affiliation, version);
     let payload = Payload {
         message: Message {
             data: json::to_string(&threema_payload).expect("Could not encode JSON threema payload"),
-            android: AndroidConfig {
-                urgency: Urgency::High,
-                category: Category::Voip,
-                ttl,
-            },
             token: &[&push_token.0],
         },
     };
