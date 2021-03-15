@@ -8,7 +8,7 @@ use serde_derive::Deserialize;
 pub struct Config {
     pub fcm: FcmConfig,
     pub apns: ApnsConfig,
-    pub hms: HashMap<String, HmsConfig>,
+    pub hms: Option<HashMap<String, HmsConfig>>,
     pub influxdb: Option<InfluxdbConfig>,
 }
 
