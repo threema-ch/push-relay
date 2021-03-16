@@ -510,6 +510,7 @@ mod tests {
                 HmsConfig {
                     client_id: CLIENT_ID.into(),
                     client_secret: CLIENT_SECRET.into(),
+                    high_priority: None,
                 },
             );
 
