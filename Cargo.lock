@@ -2,8 +2,9 @@
 # It is not intended for manual editing.
 [[package]]
 name = "a2"
-version = "0.5.2"
-source = "git+https://github.com/pimeys/a2?branch=tokio-1_0#35255053dc586b4b4dda756957e6558c3e02c8c2"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "42ea916b3c425e80893aeb596f41e3cbe931899d7b88b2a625eadb5b9814dc68"
 dependencies = [
  "base64 0.12.3",
  "erased-serde",
