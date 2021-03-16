@@ -371,7 +371,7 @@ pub async fn send_push(
     // Validate status code
     match status {
         StatusCode::OK => {
-            trace!("HMS push request returned HTTP 200");
+            trace!("HMS push request returned HTTP 200: {}", body);
         }
         StatusCode::BAD_REQUEST => {
             return Err(SendPushError::ProcessingClientError(format!(

@@ -22,7 +22,7 @@ pub struct HmsToken(pub String);
 pub enum PushToken {
     Fcm(FcmToken),
     Apns(ApnsToken),
-    Hms { token: HmsToken, subtype: String },
+    Hms { token: HmsToken, app_id: String },
 }
 
 impl PushToken {
