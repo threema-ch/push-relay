@@ -265,7 +265,10 @@ async fn handle_push_request(
         ($name:expr) => {
             match find!($name) {
                 Some(v) => v,
-                None => return Ok(responses::bad_request("Invalid or missing parameters")),
+                None => {
+                    warn!("Missing request parameter: {}", $name);
+                    return Ok(responses::bad_request("Invalid or missing parameters"));
+                },
             }
         };
     }
