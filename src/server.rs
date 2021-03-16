@@ -268,7 +268,7 @@ async fn handle_push_request(
                 None => {
                     warn!("Missing request parameter: {}", $name);
                     return Ok(responses::bad_request("Invalid or missing parameters"));
-                },
+                }
             }
         };
     }
