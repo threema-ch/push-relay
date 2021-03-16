@@ -28,6 +28,7 @@ pub struct ApnsConfig {
 pub struct HmsConfig {
     pub client_id: String,
     pub client_secret: String,
+    pub high_priority: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]

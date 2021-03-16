@@ -61,10 +61,42 @@ fn hms_push_url(app_id: &str) -> String {
     )
 }
 
+/// HMS push urgency.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum Urgency {
+    High,
+    Normal,
+}
+
+/// HMS push category.
+///
+/// Note: To be able to use these categories, you need to apply for special
+/// permission.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum Category {
+    //PlayVoice,
+    Voip,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AndroidConfig {
+    /// The urgency.
+    urgency: Urgency,
+    /// The push category.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    category: Option<Category>,
+    /// Time to live in seconds.
+    ttl: String,
+}
+
 #[derive(Debug, Serialize)]
 pub struct Message<'a> {
     /// The push payload.
     data: String,
+    /// Android message push control.
+    android: AndroidConfig,
     /// Push token(s) of the recipient(s).
     token: &'a [&'a str],
 }
@@ -318,12 +350,26 @@ pub async fn send_push(
     version: u16,
     session: &str,
     affiliation: Option<&str>,
-    _ttl: u32, // Not currently supported by HMS
+    ttl: u32,
 ) -> Result<(), SendPushError> {
     let threema_payload = ThreemaPayload::new(session, affiliation, version);
+    let high_priority = context.config.high_priority.unwrap_or(false);
     let payload = Payload {
         message: Message {
             data: json::to_string(&threema_payload).expect("Could not encode JSON threema payload"),
+            android: AndroidConfig {
+                urgency: if high_priority {
+                    Urgency::High
+                } else {
+                    Urgency::Normal
+                },
+                category: if high_priority {
+                    Some(Category::Voip)
+                } else {
+                    None
+                },
+                ttl: format!("{}s", ttl),
+            },
             token: &[&push_token.0],
         },
     };
@@ -464,6 +510,7 @@ mod tests {
                 HmsConfig {
                     client_id: CLIENT_ID.into(),
                     client_secret: CLIENT_SECRET.into(),
+                    high_priority: None,
                 },
             );
 
