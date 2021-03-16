@@ -241,6 +241,7 @@ async fn handle_push_request(
         }
     };
     let parsed = form_urlencoded::parse(&body).collect::<Vec<_>>();
+    trace!("Request body: {:?}", parsed);
 
     // Validate parameters
     if parsed.is_empty() {
