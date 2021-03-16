@@ -358,8 +358,16 @@ pub async fn send_push(
         message: Message {
             data: json::to_string(&threema_payload).expect("Could not encode JSON threema payload"),
             android: AndroidConfig {
-                urgency: if high_priority { Urgency::High } else { Urgency::Normal },
-                category: if high_priority { Some(Category::Voip) } else { None },
+                urgency: if high_priority {
+                    Urgency::High
+                } else {
+                    Urgency::Normal
+                },
+                category: if high_priority {
+                    Some(Category::Voip)
+                } else {
+                    None
+                },
                 ttl: format!("{}s", ttl),
             },
             token: &[&push_token.0],
