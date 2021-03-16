@@ -12,7 +12,7 @@ Possible log types:
 - `[security]` to invite users to upgrade in case of vulnerabilities.
 
 
-### Unreleased
+### [v4.0.0][v4.0.0] (2020-03-15)
 
 - [added] Support for HMS
 - [added] FCM: Support for connection reuse and TLS session resumption
@@ -85,3 +85,4 @@ Possible log types:
 [v3.2.1]: https://github.com/threema-ch/push-relay/compare/v3.2.0...v3.2.1
 [v3.3.0]: https://github.com/threema-ch/push-relay/compare/v3.2.1...v3.3.0
 [v3.4.0]: https://github.com/threema-ch/push-relay/compare/v3.3.0...v3.4.0
+[v4.0.0]: https://github.com/threema-ch/push-relay/compare/v3.4.0...v4.0.0
