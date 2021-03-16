@@ -19,7 +19,6 @@ Supported backends:
 Request keys:
 
 - `type`: Either `fcm`, `hms` or `apns`
-- `subtype` (HMS only): can be used to differentiate between multiple named configs
 - `token`: The device push token
 - `session`: SHA256 hash of public permanent key of the initiator
 - `version`: Threema Web protocol version
@@ -29,6 +28,7 @@ Request keys:
   collapsed.
 - `bundleid` (APNs only): The bundle id to use
 - `endpoint` (APNs only): Either `p` (production) or `s` (sandbox)
+- `appid` (HMS only): Can be used to differentiate between multiple configs
 
 Examples:
 
@@ -37,7 +37,7 @@ Examples:
     curl -X POST -H "Origin: https://localhost" localhost:3000/push \
         -d "type=apns&token=asdf&session=123deadbeef&version=3&bundleid=com.example.app&endpoint=s"
     curl -X POST -H "Origin: https://localhost" localhost:3000/push \
-        -d "type=hms&subtype=consumer&token=asdf&session=123deadbeef&version=3"
+        -d "type=hms&appid=123456&token=asdf&session=123deadbeef&version=3"
 
 Possible response codes:
 
@@ -78,12 +78,13 @@ You need the Rust compiler. First, create a `config.toml` file that looks like t
     team_id = "CD987654YZ"
 
 To support HMS as well, you need to add one or more named HMS config sections.
+The name should correspond to the App ID (and currently matches the Client ID).
 
-    [hms.credentials_a]
+    [hms.app-id-1]
     client_id = "your-client-id"
     client_secret = "your-client-secret"
 
-    [hms.credentials_b]
+    [hms.app-id-2]
     client_id = "your-client-id"
     client_secret = "your-client-secret"
 

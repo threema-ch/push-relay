@@ -241,6 +241,7 @@ async fn handle_push_request(
         }
     };
     let parsed = form_urlencoded::parse(&body).collect::<Vec<_>>();
+    trace!("Request params: {:?}", parsed);
 
     // Validate parameters
     if parsed.is_empty() {
@@ -264,7 +265,10 @@ async fn handle_push_request(
         ($name:expr) => {
             match find!($name) {
                 Some(v) => v,
-                None => return Ok(responses::bad_request("Invalid or missing parameters")),
+                None => {
+                    warn!("Missing request parameter: {}", $name);
+                    return Ok(responses::bad_request("Invalid or missing parameters"));
+                }
             }
         };
     }
@@ -286,7 +290,7 @@ async fn handle_push_request(
         "apns" => PushToken::Apns(ApnsToken(find_or_bad_request!("token").to_string())),
         "hms" => PushToken::Hms {
             token: HmsToken(find_or_bad_request!("token").to_string()),
-            subtype: find_or_bad_request!("subtype").to_string(),
+            app_id: find_or_bad_request!("appid").to_string(),
         },
         other => {
             warn!("Got push request with invalid token type: {}", other);
@@ -380,9 +384,9 @@ async fn handle_push_request(
         }
         PushToken::Hms {
             ref token,
-            ref subtype,
-        } => match hms_contexts.get(subtype) {
-            // We found a context for this subtype
+            ref app_id,
+        } => match hms_contexts.get(app_id) {
+            // We found a context for this App ID
             Some(context) => {
                 hms::send_push(
                     &*context,
@@ -394,10 +398,10 @@ async fn handle_push_request(
                 )
                 .await
             }
-            // No config found for this subtype
+            // No config found for this App ID
             None => Err(SendPushError::ProcessingClientError(format!(
-                "Unknown HMS subtype: {}",
-                subtype
+                "Unknown HMS App ID: {}",
+                app_id
             ))),
         },
     };
