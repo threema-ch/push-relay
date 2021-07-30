@@ -12,7 +12,7 @@ Possible log types:
 - `[security]` to invite users to upgrade in case of vulnerabilities.
 
 
-### [v4.0.0][v4.0.0] (2020-03-15)
+### [v4.0.0][v4.0.0] (2021-03-15)
 
 - [added] Support for HMS
 - [added] FCM: Support for connection reuse and TLS session resumption
