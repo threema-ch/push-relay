@@ -63,13 +63,9 @@ jobs:
         args: --all -- --check
 
   audit:
-    name: run cargo-audit
+    name: run cargo audit
     runs-on: ubuntu-latest
+    container: dbrgn/cargo-audit:latest
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
-      with:
-          toolchain: 1.49.0
-          override: true
-    - run: cargo install cargo-audit
     - run: cargo audit
