@@ -65,4 +65,5 @@ jobs:
     container: dbrgn/cargo-audit:latest
     steps:
     - uses: actions/checkout@v2
-    - run: cargo audit
+    # Note: Two advisories ignored until a solution for https://github.com/chronotope/chrono/issues/499 exists
+    - run: cargo audit --ignore RUSTSEC-2020-0071 --ignore RUSTSEC-2020-0159
