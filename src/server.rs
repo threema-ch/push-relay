@@ -112,7 +112,7 @@ pub async fn serve(
                 };
             }
             .boxed()
-        };
+        }
         debug!("Sending stats to InfluxDB");
         log_started(db).await;
     } else {
