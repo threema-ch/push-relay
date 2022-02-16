@@ -45,6 +45,6 @@ impl Config {
         let mut contents = String::new();
         file.read_to_string(&mut contents)
             .map_err(|e| e.to_string())?;
-        Ok(toml::from_str(&contents).map_err(|e| e.to_string())?)
+        toml::from_str(&contents).map_err(|e| e.to_string())
     }
 }
