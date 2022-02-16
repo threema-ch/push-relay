@@ -112,7 +112,7 @@ pub async fn serve(
                 };
             }
             .boxed()
-        };
+        }
         debug!("Sending stats to InfluxDB");
         log_started(db).await;
     } else {
@@ -352,7 +352,7 @@ async fn handle_push_request(
                 &fcm_api_key,
                 token,
                 version,
-                &session_public_key,
+                session_public_key,
                 affiliation,
                 collapse_key.as_deref(),
                 ttl,
@@ -375,7 +375,7 @@ async fn handle_push_request(
                 token,
                 bundle_id.expect("bundle_id is None"),
                 version,
-                &session_public_key,
+                session_public_key,
                 affiliation,
                 collapse_id,
                 ttl,
@@ -392,7 +392,7 @@ async fn handle_push_request(
                     &*context,
                     token,
                     version,
-                    &session_public_key,
+                    session_public_key,
                     affiliation,
                     ttl,
                 )
@@ -493,17 +493,14 @@ impl Service<Request<Body>> for PushHandler {
 
 #[cfg(test)]
 mod tests {
-    use hyper;
-    use mockito;
-    use openssl;
+    use hyper::Body;
+    use mockito::{mock, Matcher};
+    use openssl::{
+        ec::{EcGroup, EcKey},
+        nid::Nid,
+    };
 
     use super::*;
-
-    use hyper::Body;
-
-    use self::mockito::{mock, Matcher};
-    use self::openssl::ec::{EcGroup, EcKey};
-    use self::openssl::nid::Nid;
 
     async fn get_body(body: Body) -> String {
         let bytes = body::to_bytes(body).await.unwrap();

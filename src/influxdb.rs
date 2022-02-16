@@ -37,7 +37,7 @@ impl Influxdb {
         );
 
         // Determine authorization header
-        let authorization = Self::get_authorization_header(&user, &pass);
+        let authorization = Self::get_authorization_header(user, pass);
 
         Ok(Self {
             connection_string,

@@ -1,5 +1,6 @@
 [package]
 name = "push-relay"
+description = "This server accepts push requests via HTTP and notifies FCM/APNs push services."
 version = "4.0.0"
 authors = ["Danilo Bargen <danilo.bargen@threema.ch>"]
 license = "MIT OR Apache-2.0"
@@ -10,14 +11,14 @@ edition = "2018"
 a2 = "0.6"
 base64 = "0.13"
 chrono = "0.4"
-clap = "2"
-env_logger = "0.8"
+clap = { version = "3", features = ["std", "derive", "suggestions", "color"], default-features = false }
+env_logger = "0.9"
 form_urlencoded = "1"
 futures = "0.3"
 hostname = "0.3"
 http = "0.2"
 hyper = { version = "0.14", features = ["server", "client", "http1", "http2", "runtime", "stream"], default-features = false }
-hyper-rustls = "0.22"
+hyper-rustls = "0.23"
 lazy_static = "1.3"
 log = "0.4"
 serde = "1.0.27"
@@ -28,6 +29,6 @@ toml = "0.5"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"], default-features = false }
 
 [dev-dependencies]
-mockito = "0.28"
+mockito = "0.30"
 argparse = "*"
 openssl = "*"
