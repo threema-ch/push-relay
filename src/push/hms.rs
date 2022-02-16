@@ -121,7 +121,9 @@ struct AuthResponse {
 #[serde(rename_all = "camelCase")]
 struct PushResponse {
     code: String,
+    #[allow(dead_code)]
     msg: String,
+    #[allow(dead_code)]
     request_id: String,
 }
 
