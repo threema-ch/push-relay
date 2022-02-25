@@ -1,19 +1,29 @@
 //! Code related to the sending of APNs push notifications.
 
-use std::convert::Into;
-use std::io::Read;
-use std::time::{Duration, SystemTime};
-
-use a2::client::{Client, Endpoint};
-use a2::error::Error as A2Error;
-use a2::request::notification::{
-    NotificationBuilder, NotificationOptions, Priority, SilentNotificationBuilder,
+use std::{
+    collections::BTreeMap,
+    convert::Into,
+    io::Read,
+    time::{Duration, SystemTime},
 };
-use a2::response::ErrorReason;
-use a2::CollapseId;
 
-use crate::errors::{PushRelayError, SendPushError};
-use crate::push::{ApnsToken, ThreemaPayload};
+use a2::{
+    client::{Client, Endpoint},
+    error::Error as A2Error,
+    request::{
+        notification::{
+            NotificationBuilder, NotificationOptions, Priority, SilentNotificationBuilder,
+        },
+        payload::{APSAlert, Payload, APS},
+    },
+    response::ErrorReason,
+    CollapseId,
+};
+
+use crate::{
+    errors::{PushRelayError, SendPushError},
+    push::{ApnsToken, ThreemaPayload},
+};
 
 const PAYLOAD_KEY: &str = "3mw";
 
@@ -65,7 +75,27 @@ pub async fn send_push(
     };
 
     // Notification payload
-    let mut payload = SilentNotificationBuilder::new().build(&*push_token.0, options);
+    let mut payload = if bundle_id.ends_with(".voip") {
+        // This is a voip push, so use the SilentNotificationBuilder
+        SilentNotificationBuilder::new().build(&*push_token.0, options)
+    } else {
+        // Regular push, build notification ourselves for full control
+        Payload {
+            options,
+            device_token: &*push_token.0,
+            aps: APS {
+                alert: Some(APSAlert::Plain("Threema Web Wakeup")),
+                badge: None,
+                sound: Some("default"),
+                content_available: None,
+                category: None,
+                mutable_content: Some(1),
+                url_args: None,
+            },
+            data: BTreeMap::new(),
+        }
+    };
+
     let data = ThreemaPayload::new(session, affiliation, version);
     payload.add_custom_data(PAYLOAD_KEY, &data).map_err(|e| {
         SendPushError::Other(format!("Could not add custom data to APNs payload: {}", e))
