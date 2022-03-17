@@ -12,6 +12,11 @@ Possible log types:
 - `[security]` to invite users to upgrade in case of vulnerabilities.
 
 
+### [v4.1.0][v4.1.0] (2022-03-17)
+
+- [added] APNs: Support non-silent push notifications as well (#46)
+- [changed] Updated dependencies
+
 ### [v4.0.0][v4.0.0] (2021-03-15)
 
 - [added] Support for HMS
