@@ -339,9 +339,15 @@ async fn handle_push_request(
     };
 
     // Send push notification
+    let variant = match bundle_id {
+        Some(bid) if bid.ends_with(".voip") => "/s",
+        Some(_bid) => "/n",
+        None => "",
+    };
     info!(
-        "Sending push message to {} for session {} [v{}]",
+        "Sending push message to {}{} for session {} [v{}]",
         push_token.abbrev(),
+        variant,
         session_public_key,
         version
     );
