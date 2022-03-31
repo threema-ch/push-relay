@@ -12,6 +12,11 @@ Possible log types:
 - `[security]` to invite users to upgrade in case of vulnerabilities.
 
 
+### [v4.1.1][v4.1.1] (2022-03-31)
+
+- [added] Log APNs push type (#49)
+- [changed] Updated dependencies
+
 ### [v4.1.0][v4.1.0] (2022-03-17)
 
 - [added] APNs: Support non-silent push notifications as well (#46)
@@ -91,3 +96,5 @@ Possible log types:
 [v3.3.0]: https://github.com/threema-ch/push-relay/compare/v3.2.1...v3.3.0
 [v3.4.0]: https://github.com/threema-ch/push-relay/compare/v3.3.0...v3.4.0
 [v4.0.0]: https://github.com/threema-ch/push-relay/compare/v3.4.0...v4.0.0
+[v4.1.0]: https://github.com/threema-ch/push-relay/compare/v4.0.0...v4.1.0
+[v4.1.1]: https://github.com/threema-ch/push-relay/compare/v4.1.0...v4.1.1
