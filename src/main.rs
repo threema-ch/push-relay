@@ -94,7 +94,7 @@ async fn main() {
     info!("Starting Push Relay Server {} on {}", VERSION, &args.listen);
 
     if let Err(e) = server::serve(config, &apns_api_key, args.listen).await {
-        error!("Server error: {}", e);
+        error!("Server error: {:?}", e);
         process::exit(3);
     }
 }

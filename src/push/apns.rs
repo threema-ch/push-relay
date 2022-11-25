@@ -34,10 +34,10 @@ pub fn create_client<R, T, K>(
     team_id: T,
     key_id: K,
 ) -> Result<Client, PushRelayError>
-where
-    R: Read,
-    T: Into<String>,
-    K: Into<String>,
+    where
+        R: Read,
+        T: Into<String>,
+        K: Into<String>,
 {
     Client::token(api_key, key_id, team_id, endpoint).map_err(Into::into)
 }
@@ -98,7 +98,7 @@ pub async fn send_push(
 
     let data = ThreemaPayload::new(session, affiliation, version);
     payload.add_custom_data(PAYLOAD_KEY, &data).map_err(|e| {
-        SendPushError::Other(format!("Could not add custom data to APNs payload: {}", e))
+        SendPushError::Other(format!("Could not add custom data to APNs payload: {:?}", e))
     })?;
     trace!("Sending payload: {:#?}", payload);
 
@@ -122,8 +122,8 @@ pub async fn send_push(
                         ErrorReason::DeviceTokenNotForTopic |
                         ErrorReason::TopicDisallowed => {
                             return Err(SendPushError::ProcessingClientError(
-                                format!("Push was unsuccessful: {}", e)));
-                        },
+                                format!("Push was unsuccessful: {:?}", e)));
+                        }
 
                         // Below errors should never happen
                         ErrorReason::BadCollapseId |
@@ -144,8 +144,8 @@ pub async fn send_push(
                         ErrorReason::MethodNotAllowed |
                         ErrorReason::PayloadTooLarge |
                         ErrorReason::TooManyProviderTokenUpdates => {
-                            error!("Unexpected APNs error response: {}", e);
-                        },
+                            error!("Unexpected APNs error response: {:?}", e);
+                        }
 
                         // APNs server errors
                         ErrorReason::TooManyRequests |
@@ -158,7 +158,7 @@ pub async fn send_push(
 
             // Treat all other errors as server errors
             Err(SendPushError::ProcessingRemoteError(format!(
-                "Push was unsuccessful: {}",
+                "Push was unsuccessful: {:?}",
                 e
             )))
         }

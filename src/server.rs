@@ -104,10 +104,10 @@ pub async fn serve(
                             warn!("InfluxDB database does not yet exist. Create it...");
                             match db.create_db().await {
                                 Ok(_) => log_started(db).await,
-                                Err(e) => error!("Could not create InfluxDB database: {}", e),
+                                Err(e) => error!("Could not create InfluxDB database: {:?}", e),
                             }
                         }
-                        other => error!("Could not log starting event to InfluxDB: {}", other),
+                        other => error!("Could not log starting event to InfluxDB: {:?}", other),
                     }
                 };
             }
@@ -418,7 +418,7 @@ async fn handle_push_request(
             .log_push(push_token.abbrev(), version, push_result.is_ok())
             .await;
         if let Err(e) = log_result {
-            warn!("Could not submit stats to InfluxDB: {}", e);
+            warn!("Could not submit stats to InfluxDB: {:?}", e);
         }
     }
 
@@ -433,7 +433,7 @@ async fn handle_push_request(
                 .unwrap())
         }
         Err(e) => {
-            warn!("Error: {}", e);
+            warn!("Error: {:?}", e);
             Ok(Response::builder()
                 .status(match e {
                     SendPushError::SendError(_) => StatusCode::BAD_GATEWAY,
@@ -510,7 +510,7 @@ mod tests {
 
     async fn get_body(body: Body) -> String {
         let bytes = body::to_bytes(body).await.unwrap();
-        ::std::str::from_utf8(&bytes).unwrap().to_string()
+        std::str::from_utf8(&bytes).unwrap().to_string()
     }
 
     fn get_apns_test_key() -> Vec<u8> {

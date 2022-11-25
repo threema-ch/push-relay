@@ -124,15 +124,15 @@ pub async fn send_push(
                 "Unauthorized. Is the API token correct?".into(),
             ))
         }
-        status => match from_utf8(&body) {
+        status => return match from_utf8(&body) {
             Ok(body) => {
-                return Err(SendPushError::Other(format!(
+                Err(SendPushError::Other(format!(
                     "Unknown error: HTTP {}: {}",
                     status, body
                 )))
             }
             Err(_) => {
-                return Err(SendPushError::Other(format!(
+                Err(SendPushError::Other(format!(
                     "Unknown error (and non-UTF-8 body): HTTP {}",
                     status
                 )))
