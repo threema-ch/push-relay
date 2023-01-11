@@ -135,6 +135,6 @@ at your option.
 
 <!-- Badges -->
 [ci]: https://github.com/threema-ch/push-relay/actions?query=workflow%3ACI
-[ci-badge]: https://img.shields.io/github/workflow/status/threema-ch/push-relay/CI/master
+[ci-badge]: https://img.shields.io/github/actions/workflow/status/threema-ch/push-relay/ci.yml?branch=master
 [license]: https://github.com/threema-ch/push-relay#license
 [license-badge]: https://img.shields.io/badge/License-Apache%202.0%20%2f%20MIT-blue.svg
