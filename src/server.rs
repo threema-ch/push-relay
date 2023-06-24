@@ -52,7 +52,7 @@ pub async fn serve(
     } = config;
 
     // Convert missing hms config to empty HashMap
-    let hms = hms.unwrap_or_else(HashMap::new);
+    let hms = hms.unwrap_or_default();
 
     // Create FCM HTTP client
     let fcm_client = http_client::make_client(90);
@@ -377,7 +377,7 @@ async fn handle_push_request(
                 }
             };
             apns::send_push(
-                &*client,
+                &client,
                 token,
                 bundle_id.expect("bundle_id is None"),
                 version,
@@ -395,7 +395,7 @@ async fn handle_push_request(
             // We found a context for this App ID
             Some(context) => {
                 hms::send_push(
-                    &*context,
+                    context,
                     token,
                     version,
                     session_public_key,

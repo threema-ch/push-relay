@@ -77,12 +77,12 @@ pub async fn send_push(
     // Notification payload
     let mut payload = if bundle_id.ends_with(".voip") {
         // This is a voip push, so use the SilentNotificationBuilder
-        SilentNotificationBuilder::new().build(&*push_token.0, options)
+        SilentNotificationBuilder::new().build(&push_token.0, options)
     } else {
         // Regular push, build notification ourselves for full control
         Payload {
             options,
-            device_token: &*push_token.0,
+            device_token: &push_token.0,
             aps: APS {
                 alert: Some(APSAlert::Plain("Threema Web Wakeup")),
                 badge: None,
