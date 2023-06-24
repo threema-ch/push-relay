@@ -1,0 +1,8 @@
+{
+    "editor.defaultFormatter": "rust-lang.rust-analyzer",
+    "editor.formatOnSave": true,
+    "editor.formatOnPaste": false,
+    "rewrap.wrappingColumn": 120,
+    "rust-analyzer.check.command": "clippy"
+  }
+  
