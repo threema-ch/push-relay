@@ -1,6 +1,7 @@
 pub mod apns;
 pub mod fcm;
 pub mod hms;
+pub mod threema_gateway;
 
 use chrono::Utc;
 use serde_derive::Serialize;
@@ -17,12 +18,23 @@ pub struct ApnsToken(pub String);
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct HmsToken(pub String);
 
+// A Threema Gateway token.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct ThreemaGatewayToken(pub String);
+
 /// The possible push token types.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum PushToken {
     Fcm(FcmToken),
     Apns(ApnsToken),
-    Hms { token: HmsToken, app_id: String },
+    Hms {
+        token: HmsToken,
+        app_id: String,
+    },
+    ThreemaGateway {
+        identity: String,
+        public_key: [u8; 32],
+    },
 }
 
 impl PushToken {
@@ -31,6 +43,7 @@ impl PushToken {
             PushToken::Fcm(_) => "FCM",
             PushToken::Apns(_) => "APNs",
             PushToken::Hms { .. } => "HMS",
+            PushToken::ThreemaGateway { .. } => "ThreemaGateway",
         }
     }
 }

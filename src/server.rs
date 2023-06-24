@@ -11,6 +11,7 @@ use std::{
 
 use a2::client::{Client as ApnsClient, Endpoint};
 use a2::CollapseId;
+use data_encoding::HEXLOWER_PERMISSIVE;
 use futures::future::{BoxFuture, FutureExt};
 use http::status::StatusCode;
 use hyper::{
@@ -23,15 +24,16 @@ use hyper::{
 use tokio::sync::Mutex;
 
 use crate::{
-    config::Config,
+    config::{Config, ThreemaGatewayConfig},
     errors::{InfluxdbError, PushRelayError, SendPushError, ServiceError},
     http_client::{self, HttpClient},
     influxdb::Influxdb,
     push::{
         apns, fcm,
         hms::{self, HmsContext},
-        ApnsToken, FcmToken, HmsToken, PushToken,
+        threema_gateway, ApnsToken, FcmToken, HmsToken, PushToken,
     },
+    ThreemaGatewayPrivateKey,
 };
 
 static COLLAPSE_KEY_PREFIX: &str = "relay";
@@ -41,6 +43,7 @@ static TTL_DEFAULT: u32 = 90;
 pub async fn serve(
     config: Config,
     apns_api_key: &[u8],
+    threema_gateway_private_key: Option<ThreemaGatewayPrivateKey>,
     listen_on: SocketAddr,
 ) -> Result<(), PushRelayError> {
     // Destructure config
@@ -48,6 +51,7 @@ pub async fn serve(
         fcm,
         apns,
         hms,
+        threema_gateway,
         influxdb,
     } = config;
 
@@ -85,6 +89,9 @@ pub async fn serve(
             })
             .collect::<HashMap<String, HmsContext>>(),
     );
+
+    // Create Threema Gateway HTTP client
+    let threema_gateway_client = http_client::make_client(90);
 
     // Create InfluxDB client
     let influxdb = influxdb.map(|c| {
@@ -127,6 +134,9 @@ pub async fn serve(
             apns_client_prod: apns_client_prod.clone(),
             apns_client_sbox: apns_client_sbox.clone(),
             hms_contexts: hms_contexts.clone(),
+            threema_gateway_client: threema_gateway_client.clone(),
+            threema_gateway_private_key: threema_gateway_private_key.clone(),
+            threema_gateway_config: threema_gateway.clone(),
             influxdb: influxdb.clone(),
         };
         async move { Ok::<_, ServiceError>(service) }
@@ -145,6 +155,9 @@ pub struct PushHandler {
     apns_client_prod: Arc<Mutex<ApnsClient>>,
     apns_client_sbox: Arc<Mutex<ApnsClient>>,
     hms_contexts: Arc<HashMap<String, HmsContext>>,
+    threema_gateway_client: HttpClient,
+    threema_gateway_config: Option<ThreemaGatewayConfig>,
+    threema_gateway_private_key: Option<ThreemaGatewayPrivateKey>,
     influxdb: Option<Arc<Influxdb>>,
 }
 
@@ -198,6 +211,9 @@ async fn handle_push_request(
     apns_client_prod: Arc<Mutex<ApnsClient>>,
     apns_client_sbox: Arc<Mutex<ApnsClient>>,
     hms_contexts: Arc<HashMap<String, HmsContext>>,
+    threema_gateway_client: HttpClient,
+    threema_gateway_config: Option<ThreemaGatewayConfig>,
+    threema_gateway_private_key: Option<ThreemaGatewayPrivateKey>,
     influxdb: Option<Arc<Influxdb>>,
 ) -> Result<Response<Body>, ServiceError> {
     debug!("{} {}", req.method(), req.uri());
@@ -292,6 +308,33 @@ async fn handle_push_request(
             token: HmsToken(find_or_bad_request!("token").to_string()),
             app_id: find_or_bad_request!("appid").to_string(),
         },
+        "threema-gateway" => {
+            let identity = find_or_bad_request!("identity").to_string();
+            if identity.len() != 8 || identity.starts_with('*') {
+                warn!("Got push request with invalid identity: {}", identity);
+                return Ok(responses::bad_request("Invalid or missing parameters"));
+            }
+            let public_key_hex = find_or_bad_request!("public_key");
+            if public_key_hex.len() != 64 {
+                warn!(
+                    "Got push request with invalid public key length: {}",
+                    public_key_hex.len()
+                );
+                return Ok(responses::bad_request("Invalid or missing parameters"));
+            }
+            let Ok(public_key) = HEXLOWER_PERMISSIVE.decode(public_key_hex.as_bytes()) else {
+                warn!("Got push request with invalid public key: {}", public_key_hex);
+                return Ok(responses::bad_request("Invalid or missing parameters"));
+            };
+            let Ok(public_key) = public_key.try_into() else {
+                warn!("Got push request with invalid public key: {}", public_key_hex);
+                return Ok(responses::bad_request("Invalid or missing parameters"));
+            };
+            PushToken::ThreemaGateway {
+                identity,
+                public_key,
+            }
+        }
         other => {
             warn!("Got push request with invalid token type: {}", other);
             return Ok(responses::bad_request("Invalid or missing parameters"));
@@ -410,6 +453,33 @@ async fn handle_push_request(
                 app_id
             ))),
         },
+        PushToken::ThreemaGateway {
+            ref identity,
+            ref public_key,
+        } => {
+            if let (Some(threema_gateway_config), Some(threema_gateway_private_key)) =
+                (threema_gateway_config, threema_gateway_private_key)
+            {
+                threema_gateway::send_push(
+                    &threema_gateway_client,
+                    &threema_gateway_config.base_url,
+                    &threema_gateway_config.secret,
+                    &threema_gateway_config.identity,
+                    threema_gateway_private_key,
+                    identity,
+                    *public_key,
+                    version,
+                    session_public_key,
+                    affiliation,
+                )
+                .await
+            } else {
+                // No config found for Threema Gateway
+                Err(SendPushError::ProcessingClientError(
+                    "Cannot send Threema Gateway Push, not configured".into(),
+                ))
+            }
+        }
     };
 
     // Log to InfluxDB
@@ -468,6 +538,9 @@ impl Service<Request<Body>> for PushHandler {
         let apns_client_prod = self.apns_client_prod.clone();
         let apns_client_sbox = self.apns_client_sbox.clone();
         let hms_contexts = self.hms_contexts.clone();
+        let threema_gateway_client = self.threema_gateway_client.clone();
+        let threema_gateway_config = self.threema_gateway_config.clone();
+        let threema_gateway_private_key = self.threema_gateway_private_key.clone();
         let influxdb = self.influxdb.clone();
         let fut = async move {
             let res = handle_push_request(
@@ -477,6 +550,9 @@ impl Service<Request<Body>> for PushHandler {
                 apns_client_prod,
                 apns_client_sbox,
                 hms_contexts,
+                threema_gateway_client,
+                threema_gateway_config,
+                threema_gateway_private_key,
                 influxdb,
             )
             .await;
@@ -533,12 +609,16 @@ mod tests {
         let apns_client_sbox =
             apns::create_client(Endpoint::Sandbox, api_key.as_slice(), "team_id", "key_id")
                 .unwrap();
+        let threema_gateway_client = http_client::make_client(10);
         PushHandler {
             fcm_client,
             fcm_api_key: "aassddff".into(),
             apns_client_prod: Arc::new(Mutex::new(apns_client_prod)),
             apns_client_sbox: Arc::new(Mutex::new(apns_client_sbox)),
             hms_contexts: Arc::new(HashMap::new()),
+            threema_gateway_client,
+            threema_gateway_config: None,
+            threema_gateway_private_key: None,
             influxdb: None,
         }
     }
