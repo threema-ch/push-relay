@@ -12,6 +12,11 @@ Possible log types:
 - `[security]` to invite users to upgrade in case of vulnerabilities.
 
 
+### [v4.2.0][v4.2.0] (2023-06-27)
+
+- [added] Support for Threema Gateway push (#52)
+- [changed] Updated dependencies
+
 ### [v4.1.1][v4.1.1] (2022-03-31)
 
 - [added] Log APNs push type (#49)
@@ -98,3 +103,4 @@ Possible log types:
 [v4.0.0]: https://github.com/threema-ch/push-relay/compare/v3.4.0...v4.0.0
 [v4.1.0]: https://github.com/threema-ch/push-relay/compare/v4.0.0...v4.1.0
 [v4.1.1]: https://github.com/threema-ch/push-relay/compare/v4.1.0...v4.1.1
+[v4.2.0]: https://github.com/threema-ch/push-relay/compare/v4.1.1...v4.2.0
