@@ -86,6 +86,8 @@ async fn main() {
             None
         }
         Some(ref threema_gateway_config) => {
+            info!("Found Threema Gateway config");
+
             // Open and read private key
             let mut private_key = Zeroizing::new(Vec::new());
             File::open(&threema_gateway_config.private_key_file)
