@@ -50,7 +50,7 @@ impl Influxdb {
 
     fn get_authorization_header(user: &str, pass: &str) -> String {
         let bytes = format!("{}:{}", user, pass).into_bytes();
-        let encoded = base64::encode(&bytes);
+        let encoded = base64::encode(bytes);
         format!("Basic {}", encoded)
     }
 

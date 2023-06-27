@@ -7,9 +7,10 @@ This server accepts push requests via HTTP and relays those requests to the appr
 
 Supported backends:
 
-- Google FCM
 - Apple APNs
+- Google FCM
 - Huawei HMS
+- Threema Gateway
 
 ## Request Format
 
@@ -18,8 +19,8 @@ Supported backends:
 
 Request keys:
 
-- `type`: Either `fcm`, `hms` or `apns`
-- `token`: The device push token
+- `type`: `apns`, `fcm`, `hms` or `threema-gateway`
+- `token`: The device push token (not provided when using Threema Gateway)
 - `session`: SHA256 hash of public permanent key of the initiator
 - `version`: Threema Web protocol version
 - `affiliation` (optional): An identifier for affiliating consecutive pushes
@@ -29,22 +30,26 @@ Request keys:
 - `bundleid` (APNs only): The bundle id to use
 - `endpoint` (APNs only): Either `p` (production) or `s` (sandbox)
 - `appid` (HMS only): Can be used to differentiate between multiple configs
+- `identity` (Threema Gateway only): The Threema ID of the user.
+- `public_key` (Threema Gateway only): Public key associated to the Threema ID of the user.
 
 Examples:
 
     curl -X POST -H "Origin: https://localhost" localhost:3000/push \
-        -d "type=fcm&token=asdf&session=123deadbeef&version=3"
-    curl -X POST -H "Origin: https://localhost" localhost:3000/push \
         -d "type=apns&token=asdf&session=123deadbeef&version=3&bundleid=com.example.app&endpoint=s"
     curl -X POST -H "Origin: https://localhost" localhost:3000/push \
+        -d "type=fcm&token=asdf&session=123deadbeef&version=3"
+    curl -X POST -H "Origin: https://localhost" localhost:3000/push \
         -d "type=hms&appid=123456&token=asdf&session=123deadbeef&version=3"
+    curl -X POST -H "Origin: https://localhost" localhost:3000/push \
+        -d "type=threema-gateway&session=123deadbeef&version=3&identity=ECHOECHO&public_key=0000000000000000000000000000000000000000000000000000000000000000"
 
 Possible response codes:
 
 - `HTTP 204 (No Content)`: Request was processed successfully
 - `HTTP 400 (Bad Request)`: Invalid or missing POST parameters (including expired push tokens)
 - `HTTP 500 (Internal Server Error)`: Processing of push request failed on the Push Relay server
-- `HTTP 502 (Bad Gateway)`: Processing of push request failed on the FCM, HMS or APNs server
+- `HTTP 502 (Bad Gateway)`: Processing of push request failed on the APNs, FCM, HMS or Threema Gateway server
 
 ## Push Payload
 
@@ -56,14 +61,14 @@ The payload format looks like this:
 - `wct`: Unix epoch timestamp of the request in seconds, `i64`
 - `wcv`: Protocol version, `u16`
 
-### FCM / HMS
-
-The FCM and HMS messages contain the payload data as specified above.
-
 ### APNs
 
 The APNs message contains a key "3mw" containing the payload data as specified
 above.
+
+### FCM / HMS / Threema Gateway
+
+The FCM, HMS and Threema Gateway messages contain the payload data as specified above.
 
 ## Running
 
@@ -87,6 +92,15 @@ The name should correspond to the App ID (and currently matches the Client ID).
     [hms.app-id-2]
     client_id = "your-client-id"
     client_secret = "your-client-secret"
+
+To support Threema Gateway, the following config sections need to be added.
+Note: The apps only support messages sent from `*3MAPUSH`.
+
+    [threema_gateway]
+    base_url = "https://msgapi.threema.ch"
+    identity = "*3MAPUSH"
+    secret = "secret-for-*3MAPUSH"
+    private_key_file = "private-key-file-for-*3MAPUSH"
 
 If you want to log the pushes to InfluxDB, add the following section:
 

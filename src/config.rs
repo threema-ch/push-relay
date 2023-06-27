@@ -9,6 +9,7 @@ pub struct Config {
     pub fcm: FcmConfig,
     pub apns: ApnsConfig,
     pub hms: Option<HashMap<String, HmsConfig>>,
+    pub threema_gateway: Option<ThreemaGatewayConfig>,
     pub influxdb: Option<InfluxdbConfig>,
 }
 
@@ -29,6 +30,14 @@ pub struct HmsConfig {
     pub client_id: String,
     pub client_secret: String,
     pub high_priority: Option<bool>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct ThreemaGatewayConfig {
+    pub base_url: String,
+    pub identity: String,
+    pub secret: String,
+    pub private_key_file: String,
 }
 
 #[derive(Debug, Deserialize)]
