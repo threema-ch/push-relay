@@ -12,7 +12,7 @@ a2 = "0.6"
 aead = "0.5"
 base64 = "0.21.5"
 chrono = "0.4"
-clap = { version = "3", features = ["std", "derive", "suggestions", "color"], default-features = false }
+clap = { version = "4.4.7", features = ["std", "derive", "suggestions", "color", "help"], default-features = false }
 crypto_secretbox = "0.1"
 data-encoding = "2.4"
 env_logger = "0.10"
