@@ -18,7 +18,6 @@ data-encoding = "2.4"
 env_logger = "0.10"
 form_urlencoded = "1"
 futures = "0.3"
-generic-array = "0.14"
 hostname = "0.3"
 http = "0.2"
 hyper = { version = "0.14", features = ["server", "client", "http1", "http2", "runtime", "stream"], default-features = false }
