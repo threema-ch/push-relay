@@ -1,5 +1,6 @@
 use std::str::from_utf8;
 
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use http::header::{AUTHORIZATION, CONTENT_TYPE};
 use http::Request;
 use hyper::{body, Body, StatusCode, Uri};
@@ -50,8 +51,7 @@ impl Influxdb {
 
     fn get_authorization_header(user: &str, pass: &str) -> String {
         let bytes = format!("{}:{}", user, pass).into_bytes();
-        let encoded = base64::encode(bytes);
-        format!("Basic {}", encoded)
+        format!("Basic {}", BASE64.encode(bytes))
     }
 
     /// Create the database.

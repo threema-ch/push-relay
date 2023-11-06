@@ -1008,7 +1008,7 @@ dependencies = [
  "a2",
  "aead",
  "argparse",
- "base64 0.13.1",
+ "base64 0.21.5",
  "chrono",
  "clap",
  "crypto_secretbox",
