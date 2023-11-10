@@ -323,11 +323,17 @@ async fn handle_push_request(
                 return Ok(responses::bad_request("Invalid or missing parameters"));
             }
             let Ok(public_key) = HEXLOWER_PERMISSIVE.decode(public_key_hex.as_bytes()) else {
-                warn!("Got push request with invalid public key: {}", public_key_hex);
+                warn!(
+                    "Got push request with invalid public key: {}",
+                    public_key_hex
+                );
                 return Ok(responses::bad_request("Invalid or missing parameters"));
             };
             let Ok(public_key) = public_key.try_into() else {
-                warn!("Got push request with invalid public key: {}", public_key_hex);
+                warn!(
+                    "Got push request with invalid public key: {}",
+                    public_key_hex
+                );
                 return Ok(responses::bad_request("Invalid or missing parameters"));
             };
             PushToken::ThreemaGateway {
