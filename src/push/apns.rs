@@ -12,9 +12,9 @@ use a2::{
     error::Error as A2Error,
     request::{
         notification::{
-            NotificationBuilder, NotificationOptions, Priority, SilentNotificationBuilder,
+            DefaultNotificationBuilder, NotificationBuilder, NotificationOptions, Priority,
         },
-        payload::{APSAlert, Payload, APS},
+        payload::{APSAlert, APSSound, Payload, APS},
     },
     response::ErrorReason,
     CollapseId,
@@ -76,17 +76,20 @@ pub async fn send_push(
 
     // Notification payload
     let mut payload = if bundle_id.ends_with(".voip") {
-        // This is a voip push, so use the SilentNotificationBuilder
-        SilentNotificationBuilder::new().build(&push_token.0, options)
+        // This is a voip push, so use notification without body but `content-available` set to 1 to allow device wakeup
+        // even though push is empty (silent notifications)
+        DefaultNotificationBuilder::new()
+            .set_content_available()
+            .build(&push_token.0, options)
     } else {
         // Regular push, build notification ourselves for full control
         Payload {
             options,
             device_token: &push_token.0,
             aps: APS {
-                alert: Some(APSAlert::Plain("Threema Web Wakeup")),
+                alert: Some(APSAlert::Body("Threema Web Wakeup")),
                 badge: None,
-                sound: Some("default"),
+                sound: Some(APSSound::Sound("default")),
                 content_available: None,
                 category: None,
                 mutable_content: Some(1),

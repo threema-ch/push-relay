@@ -37,15 +37,14 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub struct ThreemaGatewayPrivateKey([u8; 32]);
 
 #[derive(Parser, Debug)]
-#[clap(about, version)]
-#[clap(setting = clap::AppSettings::DisableColoredHelp)]
+#[command(version, about, long_about = None)]
 struct Args {
     /// The ip/port to listen on
-    #[clap(short, long, default_value = "127.0.0.1:3000")]
+    #[arg(short, long, default_value = "127.0.0.1:3000")]
     listen: SocketAddr,
 
     /// Path to a config file
-    #[clap(short, long, default_value = "config.toml")]
+    #[arg(short, long, default_value = "config.toml")]
     config: PathBuf,
 }
 

@@ -24,7 +24,7 @@ use crate::{
 };
 
 mod x25519 {
-    use generic_array::GenericArray;
+    use aead::generic_array::GenericArray;
     use salsa20::hsalsa;
     use x25519_dalek::SharedSecret;
     use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -102,7 +102,7 @@ pub async fn send_push(
         .append_pair("to", to_identity)
         .append_pair("noPush", "1")
         .append_pair("noDeliveryReceipts", "1")
-        .append_pair("nonce", HEXLOWER.encode(&nonce).as_str())
+        .append_pair("nonce", HEXLOWER.encode(nonce.as_slice()).as_str())
         .append_pair("box", HEXLOWER.encode(&message).as_str())
         .finish();
 

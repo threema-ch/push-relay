@@ -14,55 +14,39 @@ jobs:
     name: run tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@v1
         with:
-          toolchain: 1.69.0
-          override: true
-      - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-      - name: Run tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all-features
+          toolchain: "1.73.0"
+      - run: cargo build
+      - run: cargo test --all-features 
 
   clippy:
     name: run clippy lints
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@v1
         with:
-            toolchain: 1.69.0
-            components: clippy
-            override: true
-      - uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features
+          toolchain: "1.73.0"
+          components: clippy
+      - run: cargo clippy --all-features -- -D warnings
 
   fmt:
     name: run rustfmt
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@v1
       with:
-          toolchain: 1.69.0
-          override: true
-    - run: rustup component add rustfmt
-    - uses: actions-rs/cargo@v1
-      with:
-        command: fmt
-        args: --all -- --check
+        toolchain: "1.73.0"
+        components: rustfmt
+    - run: cargo fmt --all --check
 
   audit:
     name: run cargo audit
     runs-on: ubuntu-latest
     container: dbrgn/cargo-audit:latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - run: cargo audit
