@@ -1,7 +1,7 @@
 [package]
 name = "push-relay"
 description = "This server accepts push requests via HTTP and notifies FCM/APNs push services."
-version = "4.2.1"
+version = "4.2.2"
 authors = ["Danilo Bargen <danilo.bargen@threema.ch>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/threema-ch/push-relay"
