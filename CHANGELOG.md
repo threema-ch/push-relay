@@ -12,6 +12,14 @@ Possible log types:
 - `[security]` to invite users to upgrade in case of vulnerabilities.
 
 
+### [v4.2.3][v4.2.3] (2024-01-30)
+
+- [changed] Updated dependencies
+
+### [v4.2.2][v4.2.2] (2023-11-14)
+
+- [changed] Updated dependencies
+
 ### [v4.2.1][v4.2.1] (2023-07-05)
 
 - [changed] Improved logging
@@ -109,3 +117,5 @@ Possible log types:
 [v4.1.1]: https://github.com/threema-ch/push-relay/compare/v4.1.0...v4.1.1
 [v4.2.0]: https://github.com/threema-ch/push-relay/compare/v4.1.1...v4.2.0
 [v4.2.1]: https://github.com/threema-ch/push-relay/compare/v4.2.0...v4.2.1
+[v4.2.2]: https://github.com/threema-ch/push-relay/compare/v4.2.1...v4.2.2
+[v4.2.2]: https://github.com/threema-ch/push-relay/compare/v4.2.2...v4.2.3
