@@ -11,6 +11,10 @@ Possible log types:
 - `[fixed]` for any bug fixes.
 - `[security]` to invite users to upgrade in case of vulnerabilities.
 
+### Unreleased
+
+- [changed] Updated dependencies
+
 ### [v4.2.3][v4.2.3] (2024-02-02)
 
 - [changed] Updated dependencies
