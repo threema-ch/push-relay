@@ -13,6 +13,7 @@
 //! Payload format: https://developer.huawei.com/consumer/en/doc/development/HMSCore-References-V5/https-send-api-0000001050986197-V5#EN-US_TOPIC_0000001124288117__section13271045101216
 
 use std::{
+    fmt::{self},
     str::{from_utf8, FromStr},
     time::{Duration, Instant},
 };
@@ -147,6 +148,16 @@ enum HmsCode {
     HighPriorityPermissionMissing, // 80300011
     InternalError,                 // 81000001
     Other(String),
+}
+
+impl fmt::Display for HmsCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        const PREFIX: &str = "HMS push failed";
+        match &self {
+            &Self::Other(reason) => write!(f, "{} with unspecified code: {}", PREFIX, reason),
+            _ => write!(f, "{}: {:?}", PREFIX, &self),
+        }
+    }
 }
 
 impl From<&str> for HmsCode {
@@ -482,10 +493,7 @@ pub async fn send_push(
         }
 
         // Other errors
-        other => Err(SendPushError::Other(format!(
-            "HMS push failed: {:?}",
-            other
-        ))),
+        other => Err(SendPushError::Other(format!("{}", other))),
     }
 }
 
