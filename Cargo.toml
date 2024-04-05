@@ -10,7 +10,7 @@ edition = "2021"
 [dependencies]
 a2 = "0.8"
 aead = "0.5"
-base64 = "0.21.5"
+base64 = "0.22.0"
 chrono = "0.4"
 clap = { version = "4.4.7", features = ["std", "derive", "suggestions", "color", "help"], default-features = false }
 crypto_secretbox = "0.1"
