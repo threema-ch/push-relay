@@ -76,7 +76,7 @@ pub async fn serve(
     )?));
 
     // Create a shared HMS HTTP client
-    let hms_client = http_client::make_client(90);
+    let hms_client = http_client::make_client_v2(90)?;
 
     // Create a HMS context for every config entry
     let hms_contexts = Arc::new(

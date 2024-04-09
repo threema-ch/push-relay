@@ -14,15 +14,14 @@
 
 use std::{
     fmt::{self},
-    str::{from_utf8, FromStr},
+    str::from_utf8,
     time::{Duration, Instant},
 };
 
-use http::{
+use reqwest::{
     header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE},
-    Request, Response,
+    Client, StatusCode,
 };
-use hyper::{body, Body, StatusCode, Uri};
 use serde_derive::{Deserialize, Serialize};
 use serde_json as json;
 use tokio::sync::Mutex;
@@ -30,7 +29,6 @@ use tokio::sync::Mutex;
 use crate::{
     config::HmsConfig,
     errors::SendPushError,
-    http_client::HttpClient,
     push::{HmsToken, ThreemaPayload},
 };
 
@@ -224,7 +222,7 @@ impl From<AuthResponse> for HmsCredentials {
 #[derive(Debug)]
 pub struct HmsContext {
     /// The HTTP client used to connect to HMS.
-    client: HttpClient,
+    client: Client,
 
     /// The long-term credentials used to request temporary OAuth credentials.
     config: HmsConfig,
@@ -235,7 +233,7 @@ pub struct HmsContext {
 }
 
 impl HmsContext {
-    pub fn new(client: HttpClient, config: HmsConfig) -> Self {
+    pub fn new(client: Client, config: HmsConfig) -> Self {
         Self {
             client,
             config,
@@ -255,14 +253,13 @@ impl HmsContext {
             .finish();
 
         // Send request
-        let request = Request::post(Uri::from_str(&hms_login_url()).unwrap())
+        let response = self
+            .client
+            .post(&hms_login_url())
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
             .header(CONTENT_LENGTH, &*body.len().to_string())
-            .body(Body::from(body))
-            .unwrap();
-        let response: Response<Body> = self
-            .client
-            .request(request)
+            .body(body)
+            .send()
             .await
             .map_err(|e| SendPushError::AuthError(e.to_string()))?;
 
@@ -270,7 +267,7 @@ impl HmsContext {
         let status = response.status();
 
         // Fetch body
-        let body_bytes = body::to_bytes(response.into_body()).await.map_err(|e| {
+        let body_bytes = response.bytes().await.map_err(|e| {
             SendPushError::AuthError(format!("Could not read HMS auth response body: {}", e))
         })?;
 
@@ -395,21 +392,18 @@ pub async fn send_push(
     // Get or refresh credentials
     let credentials = context.get_active_credentials().await?;
 
-    // Prepare request
-    let request = Request::post(Uri::from_str(&hms_push_url(&context.config.client_id)).unwrap())
+    // Send request
+    let response = context
+        .client
+        .post(&hms_push_url(&context.config.client_id))
         .header(CONTENT_TYPE, "application/json; charset=UTF-8")
         .header(CONTENT_LENGTH, &*payload_string.len().to_string())
         .header(
             AUTHORIZATION,
             &format!("Bearer {}", credentials.access_token),
         )
-        .body(Body::from(payload_string))
-        .unwrap();
-
-    // Send request
-    let response: Response<Body> = context
-        .client
-        .request(request)
+        .body(payload_string)
+        .send()
         .await
         .map_err(|e| SendPushError::SendError(e.to_string()))?;
 
@@ -417,7 +411,7 @@ pub async fn send_push(
     let status = response.status();
 
     // Fetch body
-    let body_bytes = body::to_bytes(response.into_body()).await.map_err(|e| {
+    let body_bytes = response.bytes().await.map_err(|e| {
         SendPushError::AuthError(format!("Could not read HMS auth response body: {}", e))
     })?;
 
@@ -514,7 +508,7 @@ mod tests {
             const CLIENT_SECRET: &str = "sehr-sekur";
 
             // Set up context
-            let client = http_client::make_client(10);
+            let client = http_client::make_client_v2(10).unwrap();
             let context = HmsContext::new(
                 client,
                 HmsConfig {

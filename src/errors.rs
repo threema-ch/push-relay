@@ -3,15 +3,19 @@ use std::fmt;
 
 use a2::error::Error as A2Error;
 use hyper::Error as HyperError;
+use reqwest::Error as ReqwestError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum PushRelayError {
     #[error("APNs error: {0}")]
-    ApnsError(#[from] A2Error),
+    Apns(#[from] A2Error),
 
     #[error("Hyper error: {0}")]
-    HyperError(#[from] HyperError),
+    Hyper(#[from] HyperError),
+
+    #[error("Reqwest error: {0}")]
+    Reqwest(#[from] ReqwestError),
 }
 
 #[derive(Error, Debug)]
