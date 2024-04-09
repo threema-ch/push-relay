@@ -508,7 +508,7 @@ mod tests {
             const CLIENT_SECRET: &str = "sehr-sekur";
 
             // Set up context
-            let client = http_client::make_client_v2(10).unwrap();
+            let client = http_client::make_client(10).unwrap();
             let context = HmsContext::new(
                 client,
                 HmsConfig {

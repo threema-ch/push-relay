@@ -1,6 +1,6 @@
 //! Code related to the sending of Threema Gateway push notifications.
 
-use std::str::{self, FromStr};
+use std::str;
 
 use aead::AeadInPlace;
 use crypto_secretbox::{
@@ -8,17 +8,15 @@ use crypto_secretbox::{
     XSalsa20Poly1305,
 };
 use data_encoding::HEXLOWER;
-use http::{
+use reqwest::{
     header::{ACCEPT, CONTENT_TYPE},
-    Request,
+    Client, StatusCode,
 };
-use hyper::{Body, StatusCode, Uri};
 use serde_json as json;
 use x25519_dalek::StaticSecret;
 
 use crate::{
     errors::SendPushError,
-    http_client::HttpClient,
     push::{threema_gateway::x25519::SharedSecretHSalsa20, ThreemaPayload},
     ThreemaGatewayPrivateKey,
 };
@@ -56,7 +54,7 @@ mod x25519 {
 
 /// Send a Threema Gateway push notification.
 pub async fn send_push(
-    client: &HttpClient,
+    client: &Client,
     base_url: &str,
     secret: &str,
     from_identity: &str,
@@ -107,16 +105,12 @@ pub async fn send_push(
         .finish();
 
     // Send request
-    let uri = Uri::from_str(&format!("{}/send_e2e", base_url))
-        .map_err(|error| SendPushError::Other(error.to_string()))?;
     let response = client
-        .request(
-            Request::post(uri)
-                .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .header(ACCEPT, "application/json")
-                .body(Body::from(body))
-                .unwrap(),
-        )
+        .post(format!("{}/send_e2e", base_url))
+        .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .header(ACCEPT, "application/json")
+        .body(body)
+        .send()
         .await
         .map_err(|e| SendPushError::SendError(e.to_string()))?;
 

@@ -5,7 +5,7 @@ use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use reqwest::{Body, Client, StatusCode};
 
 use crate::errors::InfluxdbError;
-use crate::http_client::make_client_v2;
+use crate::http_client::make_client;
 
 /// InfluxDB client.
 #[derive(Debug)]
@@ -29,7 +29,7 @@ impl Influxdb {
     ) -> Result<Self, String> {
         // Initialize HTTP client
         let client =
-            make_client_v2(90).map_err(|e| format!("Failed to initialize http client: {e}"))?;
+            make_client(90).map_err(|e| format!("Failed to initialize http client: {e}"))?;
 
         // Determine hostname
         let hostname = hostname::get().ok().map_or_else(

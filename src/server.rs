@@ -21,13 +21,13 @@ use hyper::{
     service::{make_service_fn, Service},
     Method, Request, Response,
 };
-use reqwest::Client;
+use reqwest::Client as HttpClient;
 use tokio::sync::Mutex;
 
 use crate::{
     config::{Config, ThreemaGatewayConfig},
     errors::{InfluxdbError, PushRelayError, SendPushError, ServiceError},
-    http_client::{self, HttpClient},
+    http_client,
     influxdb::Influxdb,
     push::{
         apns, fcm,
@@ -60,7 +60,7 @@ pub async fn serve(
     let hms = hms.unwrap_or_default();
 
     // Create FCM HTTP client
-    let fcm_client = http_client::make_client_v2(90)?;
+    let fcm_client = http_client::make_client(90)?;
 
     // Create APNs clients
     let apns_client_prod = Arc::new(Mutex::new(apns::create_client(
@@ -77,7 +77,7 @@ pub async fn serve(
     )?));
 
     // Create a shared HMS HTTP client
-    let hms_client = http_client::make_client_v2(90)?;
+    let hms_client = http_client::make_client(90)?;
 
     // Create a HMS context for every config entry
     let hms_contexts = Arc::new(
@@ -92,7 +92,7 @@ pub async fn serve(
     );
 
     // Create Threema Gateway HTTP client
-    let threema_gateway_client = http_client::make_client(90);
+    let threema_gateway_client = http_client::make_client(90)?;
 
     // Create InfluxDB client
     let influxdb = influxdb.map(|c| {
@@ -151,7 +151,7 @@ pub async fn serve(
 
 /// The server endpoint that accepts incoming push requests.
 pub struct PushHandler {
-    fcm_client: Client,
+    fcm_client: HttpClient,
     fcm_api_key: String,
     apns_client_prod: Arc<Mutex<ApnsClient>>,
     apns_client_sbox: Arc<Mutex<ApnsClient>>,
@@ -207,7 +207,7 @@ mod responses {
 /// Handle a request, return a response.
 async fn handle_push_request(
     req: Request<Body>,
-    fcm_client: Client,
+    fcm_client: HttpClient,
     fcm_api_key: String,
     apns_client_prod: Arc<Mutex<ApnsClient>>,
     apns_client_sbox: Arc<Mutex<ApnsClient>>,
@@ -604,7 +604,7 @@ mod tests {
     }
 
     fn get_handler() -> PushHandler {
-        let fcm_client = http_client::make_client_v2(10).expect("fcm_client");
+        let fcm_client = http_client::make_client(10).expect("fcm_client");
         let api_key = get_apns_test_key();
         let apns_client_prod = apns::create_client(
             Endpoint::Production,
@@ -616,7 +616,7 @@ mod tests {
         let apns_client_sbox =
             apns::create_client(Endpoint::Sandbox, api_key.as_slice(), "team_id", "key_id")
                 .unwrap();
-        let threema_gateway_client = http_client::make_client(10);
+        let threema_gateway_client = http_client::make_client(10).expect("threema_gateway_client");
         PushHandler {
             fcm_client,
             fcm_api_key: "aassddff".into(),
