@@ -1,16 +1,16 @@
 //! Code related to the sending of FCM push notifications.
 
-use std::str::{from_utf8, FromStr};
+use std::str::from_utf8;
 
-use http::header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE};
-use http::Request;
-use hyper::{body, Body, StatusCode, Uri};
+use reqwest::{
+    header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE},
+    Client, StatusCode,
+};
 use serde_derive::{Deserialize, Serialize};
 use serde_json as json;
 
 use crate::{
     errors::SendPushError,
-    http_client::HttpClient,
     push::{FcmToken, ThreemaPayload},
 };
 
@@ -69,7 +69,7 @@ pub struct MessageResult {
 
 /// Send a FCM push notification.
 pub async fn send_push(
-    client: &HttpClient,
+    client: &Client,
     api_key: &str,
     push_token: &FcmToken,
     version: u16,
@@ -94,20 +94,19 @@ pub async fn send_push(
 
     // Send request
     let response = client
-        .request(
-            Request::post(Uri::from_str(&(fcm_endpoint() + FCM_PATH)).unwrap())
-                .header(AUTHORIZATION, &*format!("key={}", api_key))
-                .header(CONTENT_TYPE, "application/json")
-                .header(CONTENT_LENGTH, &*payload_string.len().to_string())
-                .body(Body::from(payload_string))
-                .unwrap(),
-        )
+        .post(fcm_endpoint() + FCM_PATH)
+        .header(AUTHORIZATION, &*format!("key={}", api_key))
+        .header(CONTENT_TYPE, "application/json")
+        .header(CONTENT_LENGTH, &*payload_string.len().to_string())
+        .body(payload_string)
+        .send()
         .await
         .map_err(|e| SendPushError::SendError(e.to_string()))?;
 
     // Read fully body
     let status = response.status();
-    let body = body::to_bytes(response.into_body())
+    let body = response
+        .bytes()
         .await
         .map_err(|e| SendPushError::Other(format!("Could not read FCM response body: {}", e)))?;
 
