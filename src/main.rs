@@ -77,7 +77,44 @@ async fn main() {
     }
 
     // Determine Threema Gateway credentials
-    let threema_gateway_private_key = match config.threema_gateway {
+    let threema_gateway_private_key = get_gateway_key(&config);
+
+    // Open and read APNs keyfile
+    let mut apns_keyfile = File::open(&config.apns.keyfile).unwrap_or_else(|e| {
+        error!(
+            "Invalid APNs 'keyfile' path: Could not open '{}': {}",
+            config.apns.keyfile, e
+        );
+        process::exit(3);
+    });
+    let mut apns_api_key = Vec::new();
+    apns_keyfile
+        .read_to_end(&mut apns_api_key)
+        .unwrap_or_else(|e| {
+            error!(
+                "Invalid 'keyfile': Could not read '{}': {}",
+                config.apns.keyfile, e
+            );
+            process::exit(3);
+        });
+
+    info!("Starting Push Relay Server {} on {}", VERSION, &args.listen);
+
+    if let Err(e) = server::serve(
+        config,
+        &apns_api_key,
+        threema_gateway_private_key,
+        args.listen,
+    )
+    .await
+    {
+        error!("Server error: {}", e);
+        process::exit(3);
+    }
+}
+
+fn get_gateway_key(config: &Config) -> Option<ThreemaGatewayPrivateKey> {
+    match config.threema_gateway {
         None => {
             warn!(
                 "No Threema Gateway credentials found in config, Threema pushes cannot be handled"
@@ -138,38 +175,5 @@ async fn main() {
             }));
             Some(private_key)
         }
-    };
-
-    // Open and read APNs keyfile
-    let mut apns_keyfile = File::open(&config.apns.keyfile).unwrap_or_else(|e| {
-        error!(
-            "Invalid APNs 'keyfile' path: Could not open '{}': {}",
-            config.apns.keyfile, e
-        );
-        process::exit(3);
-    });
-    let mut apns_api_key = Vec::new();
-    apns_keyfile
-        .read_to_end(&mut apns_api_key)
-        .unwrap_or_else(|e| {
-            error!(
-                "Invalid 'keyfile': Could not read '{}': {}",
-                config.apns.keyfile, e
-            );
-            process::exit(3);
-        });
-
-    info!("Starting Push Relay Server {} on {}", VERSION, &args.listen);
-
-    if let Err(e) = server::serve(
-        config,
-        &apns_api_key,
-        threema_gateway_private_key,
-        args.listen,
-    )
-    .await
-    {
-        error!("Server error: {}", e);
-        process::exit(3);
     }
 }
