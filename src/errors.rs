@@ -1,8 +1,8 @@
-use std::error;
-use std::fmt;
-
 use a2::error::Error as A2Error;
-use hyper::Error as HyperError;
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
 use reqwest::Error as ReqwestError;
 use thiserror::Error;
 
@@ -11,11 +11,14 @@ pub enum PushRelayError {
     #[error("APNs error: {0}")]
     Apns(#[from] A2Error),
 
-    #[error("Hyper error: {0}")]
-    Hyper(#[from] HyperError),
-
     #[error("Reqwest error: {0}")]
     Reqwest(#[from] ReqwestError),
+
+    #[error("{reason}: {source}")]
+    IoError {
+        reason: &'static str,
+        source: std::io::Error,
+    },
 }
 
 #[derive(Error, Debug)]
@@ -51,17 +54,25 @@ pub enum InfluxdbError {
     Other(String),
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct ServiceError(String);
+#[derive(Debug)]
+pub struct ServiceError(anyhow::Error);
 
-impl fmt::Display for ServiceError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ServiceError: {}", self.0)
+// Tell axum how to convert `AppError` into a response.
+impl IntoResponse for ServiceError {
+    fn into_response(self) -> Response {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Something went wrong: {}", self.0),
+        )
+            .into_response()
     }
 }
 
-impl error::Error for ServiceError {
-    fn description(&self) -> &str {
-        &self.0
+impl<E> From<E> for ServiceError
+where
+    E: Into<anyhow::Error>,
+{
+    fn from(err: E) -> Self {
+        Self(err.into())
     }
 }
