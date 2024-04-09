@@ -1,12 +1,11 @@
 use std::str::from_utf8;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use http::header::{AUTHORIZATION, CONTENT_TYPE};
-use http::Request;
-use hyper::{body, Body, StatusCode, Uri};
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
+use reqwest::{Body, Client, StatusCode};
 
 use crate::errors::InfluxdbError;
-use crate::http_client::{make_client, HttpClient};
+use crate::http_client::make_client_v2;
 
 /// InfluxDB client.
 #[derive(Debug)]
@@ -14,7 +13,7 @@ pub struct Influxdb {
     connection_string: String,
     authorization: String,
     db: String,
-    client: HttpClient,
+    client: Client,
     hostname: String,
 }
 
@@ -29,7 +28,8 @@ impl Influxdb {
         db: String,
     ) -> Result<Self, String> {
         // Initialize HTTP client
-        let client = make_client(90);
+        let client =
+            make_client_v2(90).map_err(|e| format!("Failed to initialize http client: {e}"))?;
 
         // Determine hostname
         let hostname = hostname::get().ok().map_or_else(
@@ -58,23 +58,17 @@ impl Influxdb {
     pub async fn create_db(&self) -> InfluxdbResult {
         debug!("Creating InfluxDB database \"{}\"", self.db);
 
-        // Format URL
-        let uri: Uri = format!("{}/query", &self.connection_string)
-            .parse()
-            .unwrap();
-
         // Prepare body
         let body: Body = format!("q=CREATE%20DATABASE%20{}", self.db).into();
 
         // Send request
-        let request = Request::post(uri)
-            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .header(AUTHORIZATION, &*self.authorization)
-            .body(body)
-            .unwrap();
         let response = self
             .client
-            .request(request)
+            .post(format!("{}/query", &self.connection_string))
+            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .header(AUTHORIZATION, &self.authorization)
+            .body(body)
+            .send()
             .await
             .map_err(|e| InfluxdbError::Http(format!("Request failed: {}", e)))?;
 
@@ -82,7 +76,8 @@ impl Influxdb {
         match response.status() {
             StatusCode::OK => Ok(()),
             StatusCode::BAD_REQUEST => {
-                let body: String = body::to_bytes(response.into_body())
+                let body = response
+                    .bytes()
                     .await
                     .ok()
                     .and_then(|body| from_utf8(&body).ok().map(|s| s.to_string()))
@@ -96,20 +91,19 @@ impl Influxdb {
         }
     }
 
-    async fn log(&self, body: Body) -> InfluxdbResult {
-        // format URL
-        let uri: Uri = format!("{}/write?db={}", &self.connection_string, &self.db)
-            .parse()
-            .unwrap();
+    async fn log<B>(&self, body: B) -> InfluxdbResult
+    where
+        B: Into<Body>,
+    {
+        let body: Body = body.into();
 
         // Send request
-        let request = Request::post(uri)
-            .header(AUTHORIZATION, &*self.authorization)
-            .body(body)
-            .unwrap();
         let response = self
             .client
-            .request(request)
+            .post(format!("{}/write?db={}", &self.connection_string, &self.db))
+            .header(AUTHORIZATION, &self.authorization)
+            .body(body)
+            .send()
             .await
             .map_err(|e| InfluxdbError::Http(format!("Request failed: {}", e)))?;
 
@@ -127,29 +121,21 @@ impl Influxdb {
     /// Log the starting of the push relay server.
     pub async fn log_started(&self) -> InfluxdbResult {
         debug!("Logging \"started\" event to InfluxDB");
-        self.log(format!("started,host={} value=1", self.hostname).into())
+        self.log(format!("started,host={} value=1", self.hostname))
             .await
     }
 
     /// Log a push (either successful or failed) to InfluxDB.
     pub async fn log_push(&self, push_type: &str, version: u16, success: bool) -> InfluxdbResult {
-        debug!(
-            "Logging \"push\" event ({}, {}, v{}) to InfluxDB",
-            if success { "successful" } else { "failed" },
-            push_type,
-            version,
-        );
         let success_str = if success { "true" } else { "false" };
-        self.log(
-            format!(
-                "push,host={},type={},version={},success={} value=1",
-                self.hostname,
-                push_type.to_ascii_lowercase(),
-                version,
-                success_str,
-            )
-            .into(),
-        )
+        let push_type = push_type.to_ascii_lowercase();
+        debug!(
+            "Logging \"push\" event (success = \"{success_str}\", {push_type}, v{version}) to InfluxDB"
+        );
+        let hostname = self.hostname.as_str();
+        self.log(format!(
+            "push,host={hostname},type={push_type},version={version},success={success_str} value=1"
+        ))
         .await
     }
 }
