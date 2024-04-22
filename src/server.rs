@@ -12,8 +12,9 @@ use futures::future::{BoxFuture, FutureExt};
 use reqwest::{header::CONTENT_TYPE, Client as HttpClient};
 use tokio::net::TcpListener;
 
-use crate::config::FcmConfig;
 use crate::errors::PushRelayError;
+use crate::push::fcm::FcmStateConfig;
+use crate::push::hms::HmsStateConfig;
 use crate::{
     config::{Config, ThreemaGatewayConfig},
     errors::{InfluxdbError, SendPushError, ServiceError},
@@ -34,10 +35,11 @@ static PUSH_PATH: &str = "/push";
 #[derive(Clone)]
 struct AppState {
     fcm_client: HttpClient,
-    fcm_config: Arc<FcmConfig>,
+    fcm_config: Arc<FcmStateConfig>,
     apns_client_prod: ApnsClient,
     apns_client_sbox: ApnsClient,
     hms_contexts: Arc<HashMap<String, HmsContext>>,
+    hms_config: Arc<HmsStateConfig>,
     threema_gateway_client: HttpClient,
     threema_gateway_config: Option<ThreemaGatewayConfig>,
     threema_gateway_private_key: Option<ThreemaGatewayPrivateKey>,
@@ -129,10 +131,11 @@ pub async fn serve(
 
     let state = AppState {
         fcm_client: fcm_client.clone(),
-        fcm_config: Arc::new(fcm),
+        fcm_config: FcmStateConfig::new_shared(fcm, fcm::FCM_ENDPOINT),
         apns_client_prod: apns_client_prod.clone(),
         apns_client_sbox: apns_client_sbox.clone(),
         hms_contexts: hms_contexts.clone(),
+        hms_config: HmsStateConfig::new(),
         threema_gateway_client: threema_gateway_client.clone(),
         threema_gateway_private_key: threema_gateway_private_key.clone(),
         threema_gateway_config: threema_gateway.clone(),
@@ -389,6 +392,7 @@ async fn handle_push_request(
             Some(context) => {
                 hms::send_push(
                     context,
+                    &state.hms_config,
                     token,
                     version,
                     session_public_key,
@@ -474,12 +478,15 @@ async fn handle_push_request(
 mod tests {
     use axum::http::{Request, Response};
     use futures::StreamExt;
-    use mockito::{mock, Matcher};
     use openssl::{
         ec::{EcGroup, EcKey},
         nid::Nid,
     };
     use tower::ServiceExt;
+    use wiremock::{
+        matchers::{body_partial_json, method, path},
+        Mock, MockServer, ResponseTemplate,
+    };
 
     use super::*;
 
@@ -499,7 +506,7 @@ mod tests {
         key.private_key_to_pem().unwrap()
     }
 
-    fn get_test_state() -> AppState {
+    fn get_test_state(fcm_endpoint: Option<String>) -> AppState {
         let fcm_client = http_client::make_client(10).expect("fcm_client");
         let api_key = get_apns_test_key();
         let apns_client_prod = apns::create_client(
@@ -515,10 +522,11 @@ mod tests {
         let threema_gateway_client = http_client::make_client(10).expect("threema_gateway_client");
         AppState {
             fcm_client,
-            fcm_config: FcmConfig::stub_config(),
+            fcm_config: FcmStateConfig::stub_with(fcm_endpoint),
             apns_client_prod,
             apns_client_sbox,
             hms_contexts: Arc::new(HashMap::new()),
+            hms_config: HmsStateConfig::stub_with(None),
             threema_gateway_client,
             threema_gateway_config: None,
             threema_gateway_private_key: None,
@@ -526,8 +534,12 @@ mod tests {
         }
     }
 
+    fn get_test_app_with(fcm_endpoint: String) -> Router {
+        get_router(get_test_state(Some(fcm_endpoint)))
+    }
+
     fn get_test_app() -> Router {
-        get_router(get_test_state())
+        get_router(get_test_state(None))
     }
 
     /// Handle invalid paths
@@ -696,28 +708,36 @@ mod tests {
         let to = "aassddff";
         let session = "deadbeef";
 
-        let m = mock("POST", "/fcm/send")
-            .match_body(Matcher::AllOf(vec![
-                Matcher::Regex(format!("\"to\":\"{}\"", to)),
-                Matcher::Regex(format!("\"priority\":\"high\"")),
-                Matcher::Regex(format!("\"time_to_live\":90")),
-                Matcher::Regex(format!("\"wcs\":\"{}\"", session)),
-                Matcher::Regex(format!("\"wca\":null")),
-                Matcher::Regex(format!("\"wcv\":1")),
-            ]))
-            .with_status(200)
-            .with_body(
-                r#"{
-                    "multicast_id": 1,
-                    "success": 1,
-                    "failure": 0,
-                    "canonical_ids": 0,
-                    "results": null
-                }"#,
-            )
-            .create();
+        let mock_server = MockServer::start().await;
 
-        let app = get_test_app();
+        let expected_body = serde_json::json!({
+            "to": to,
+            "priority": "high",
+            "time_to_live": 90,
+            "data": {
+                "wcs": session,
+                "wca": null,
+                "wcv": 1
+            }
+        });
+
+        Mock::given(method("POST"))
+            .and(path(fcm::FCM_PATH))
+            .and(body_partial_json(expected_body))
+            .respond_with(ResponseTemplate::new(200).set_body_string(
+                r#"{
+                "multicast_id": 1,
+                "success": 1,
+                "failure": 0,
+                "canonical_ids": 0,
+                "results": null
+            }"#,
+            ))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let app = get_test_app_with(mock_server.uri());
 
         let req = Request::post(PUSH_PATH)
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
@@ -728,9 +748,6 @@ mod tests {
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
 
-        // Ensure that the mock was properly called
-        m.assert();
-
         // Validate response
         assert_eq!(resp.status(), StatusCode::NO_CONTENT);
         assert_eq!(
@@ -740,9 +757,11 @@ mod tests {
     }
 
     async fn test_fcm_process_error(msg: &str, status_code: StatusCode) {
-        let _m = mock("POST", "/fcm/send")
-            .with_status(200)
-            .with_body(format!(
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path(fcm::FCM_PATH))
+            .respond_with(ResponseTemplate::new(200).set_body_string(format!(
                 r#"{{
                     "multicast_id": 1,
                     "success": 0,
@@ -751,10 +770,12 @@ mod tests {
                     "results": [{{"error": "{}"}}]
                 }}"#,
                 msg,
-            ))
-            .create();
+            )))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
 
-        let app = get_test_app();
+        let app = get_test_app_with(mock_server.uri());
 
         let req = Request::post(PUSH_PATH)
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")

@@ -57,18 +57,3 @@ impl Config {
         toml::from_str(&contents).map_err(|e| e.to_string())
     }
 }
-
-#[cfg(test)]
-mod test {
-    use std::sync::Arc;
-
-    use super::*;
-
-    impl FcmConfig {
-        pub fn stub_config() -> Arc<Self> {
-            Arc::new(Self {
-                api_key: "not a working api key".to_owned(),
-            })
-        }
-    }
-}

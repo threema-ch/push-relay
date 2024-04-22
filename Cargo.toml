@@ -34,7 +34,7 @@ x25519-dalek = { version = "2.0.0", features = ["static_secrets", "zeroize"] }
 zeroize = "1.6"
 
 [dev-dependencies]
-mockito = "0.31"
 argparse = "*"
 openssl = "*"
 tower = "0.4.13"
+wiremock = "0.6.0"

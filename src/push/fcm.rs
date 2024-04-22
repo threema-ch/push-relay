@@ -15,18 +15,9 @@ use crate::{
     push::{FcmToken, ThreemaPayload},
 };
 
-#[cfg(test)]
-use mockito;
+pub const FCM_ENDPOINT: &str = "https://fcm.googleapis.com";
 
-#[cfg(not(test))]
-fn fcm_endpoint() -> String {
-    "https://fcm.googleapis.com".to_string()
-}
-#[cfg(test)]
-fn fcm_endpoint() -> String {
-    mockito::server_url()
-}
-static FCM_PATH: &str = "/fcm/send";
+pub const FCM_PATH: &str = "/fcm/send";
 
 /// FCM push priority.
 #[derive(Debug, Serialize)]
@@ -68,10 +59,25 @@ pub struct MessageResult {
     pub error: Option<String>,
 }
 
+#[derive(Debug)]
+pub struct FcmStateConfig {
+    api_key: String,
+    endpoint: String,
+}
+
+impl FcmStateConfig {
+    pub fn new_shared(config: FcmConfig, endpoint: impl Into<String>) -> Arc<Self> {
+        Arc::new(Self {
+            api_key: config.api_key,
+            endpoint: endpoint.into(),
+        })
+    }
+}
+
 /// Send a FCM push notification.
 pub async fn send_push(
     client: &Client,
-    config: &Arc<FcmConfig>,
+    config: &Arc<FcmStateConfig>,
     push_token: &FcmToken,
     version: u16,
     session: &str,
@@ -95,7 +101,7 @@ pub async fn send_push(
 
     // Send request
     let response = client
-        .post(fcm_endpoint() + FCM_PATH)
+        .post(format!("{}{}", config.endpoint.as_str(), FCM_PATH))
         .header(AUTHORIZATION, &*format!("key={}", config.api_key))
         .header(CONTENT_TYPE, "application/json")
         .header(CONTENT_LENGTH, &*payload_string.len().to_string())
@@ -224,5 +230,14 @@ mod test {
     fn test_priority_serialization() {
         assert_eq!(json::to_string(&Priority::High).unwrap(), "\"high\"");
         assert_eq!(json::to_string(&Priority::Normal).unwrap(), "\"normal\"");
+    }
+
+    impl FcmStateConfig {
+        pub fn stub_with(endpoint: Option<String>) -> Arc<Self> {
+            Arc::new(FcmStateConfig {
+                api_key: "invalid fcm api key".to_owned(),
+                endpoint: endpoint.unwrap_or_else(|| "invalid-fcm.endpoint".to_owned()),
+            })
+        }
     }
 }

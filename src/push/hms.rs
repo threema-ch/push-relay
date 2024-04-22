@@ -13,8 +13,10 @@
 //! Payload format: https://developer.huawei.com/consumer/en/doc/development/HMSCore-References-V5/https-send-api-0000001050986197-V5#EN-US_TOPIC_0000001124288117__section13271045101216
 
 use std::{
-    fmt::{self},
+    borrow::Cow,
+    fmt,
     str::from_utf8,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -32,32 +34,45 @@ use crate::{
     push::{HmsToken, ThreemaPayload},
 };
 
+pub struct HmsStateConfig {
+    login_endpoint: Cow<'static, str>,
+    push_endpoint: Cow<'static, str>,
+}
+
+type SharedHmsConfig = Arc<HmsStateConfig>;
+
+impl HmsStateConfig {
+    pub fn new() -> SharedHmsConfig {
+        let login_endpoint = Cow::Borrowed("https://oauth-login.cloud.huawei.com");
+        let push_endpoint = Cow::Borrowed("https://push-api.cloud.huawei.com");
+        Arc::new(Self {
+            login_endpoint,
+            push_endpoint,
+        })
+    }
+    fn hms_endpoint(&self, endpoint_type: EndpointType) -> &str {
+        match endpoint_type {
+            EndpointType::Login => self.login_endpoint.as_ref(),
+            EndpointType::Push => self.push_endpoint.as_ref(),
+        }
+    }
+
+    fn login_url(&self) -> String {
+        format!("{}/oauth2/v3/token", self.hms_endpoint(EndpointType::Login))
+    }
+
+    fn hms_push_url(&self, app_id: &str) -> String {
+        format!(
+            "{}/v1/{}/messages:send",
+            self.hms_endpoint(EndpointType::Push),
+            app_id
+        )
+    }
+}
+
 enum EndpointType {
     Login,
     Push,
-}
-
-// Server endpoints
-#[cfg(not(test))]
-fn hms_endpoint(endpoint_type: EndpointType) -> &'static str {
-    match endpoint_type {
-        EndpointType::Login => "https://oauth-login.cloud.huawei.com",
-        EndpointType::Push => "https://push-api.cloud.huawei.com",
-    }
-}
-#[cfg(test)]
-fn hms_endpoint(_: EndpointType) -> String {
-    mockito::server_url()
-}
-fn hms_login_url() -> String {
-    format!("{}/oauth2/v3/token", hms_endpoint(EndpointType::Login))
-}
-fn hms_push_url(app_id: &str) -> String {
-    format!(
-        "{}/v1/{}/messages:send",
-        hms_endpoint(EndpointType::Push),
-        app_id
-    )
 }
 
 /// HMS push urgency.
@@ -242,7 +257,10 @@ impl HmsContext {
     }
 
     /// Request new OAuth2 credentials from the Huawei server.
-    async fn request_new_credentials(&self) -> Result<HmsCredentials, SendPushError> {
+    async fn request_new_credentials(
+        &self,
+        config: &SharedHmsConfig,
+    ) -> Result<HmsCredentials, SendPushError> {
         debug!("Requesting OAuth2 credentials");
 
         // Prepare request
@@ -255,7 +273,7 @@ impl HmsContext {
         // Send request
         let response = self
             .client
-            .post(&hms_login_url())
+            .post(&config.login_url())
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
             .header(CONTENT_LENGTH, &*body.len().to_string())
             .body(body)
@@ -313,14 +331,17 @@ impl HmsContext {
     /// If there are no credentials so far, fetch and store them.
     /// If the credentials are outdated, refresh them.
     /// Otherwise, just return a copy directly.
-    pub async fn get_active_credentials(&self) -> Result<HmsCredentials, SendPushError> {
+    pub async fn get_active_credentials(
+        &self,
+        config: &SharedHmsConfig,
+    ) -> Result<HmsCredentials, SendPushError> {
         // Lock mutex
         let mut credentials = self.credentials.lock().await;
 
         match *credentials {
             // No credentials found, fetch initial credentials
             None => {
-                let new_credentials = self.request_new_credentials().await?;
+                let new_credentials = self.request_new_credentials(config).await?;
                 *credentials = Some(new_credentials.clone());
                 info!("Fetched initial OAuth credentials");
                 Ok(new_credentials)
@@ -337,7 +358,7 @@ impl HmsContext {
 
             // Credentials must be renewed
             Some(_) => {
-                let new_credentials = self.request_new_credentials().await?;
+                let new_credentials = self.request_new_credentials(config).await?;
                 *credentials = Some(new_credentials.clone());
                 info!("Refreshed OAuth credentials");
                 Ok(new_credentials)
@@ -356,6 +377,7 @@ impl HmsContext {
 /// Send a HMS push notification.
 pub async fn send_push(
     context: &HmsContext,
+    config: &SharedHmsConfig,
     push_token: &HmsToken,
     version: u16,
     session: &str,
@@ -390,12 +412,12 @@ pub async fn send_push(
     debug!("Payload: {}", payload_string);
 
     // Get or refresh credentials
-    let credentials = context.get_active_credentials().await?;
+    let credentials = context.get_active_credentials(config).await?;
 
     // Send request
     let response = context
         .client
-        .post(&hms_push_url(&context.config.client_id))
+        .post(&config.hms_push_url(&context.config.client_id))
         .header(CONTENT_TYPE, "application/json; charset=UTF-8")
         .header(CONTENT_LENGTH, &*payload_string.len().to_string())
         .header(
@@ -495,11 +517,24 @@ pub async fn send_push(
 mod tests {
     use super::*;
 
-    use mockito::mock;
-
     use crate::http_client;
 
+    impl HmsStateConfig {
+        pub fn stub_with(endpoint: Option<String>) -> SharedHmsConfig {
+            let endpoint = endpoint.unwrap_or_else(|| "invalid-hms.endpoint".to_owned());
+            Arc::new(Self {
+                login_endpoint: Cow::Owned(endpoint.clone()),
+                push_endpoint: Cow::Owned(endpoint),
+            })
+        }
+    }
+
     mod context {
+        use wiremock::{
+            matchers::{body_string, method},
+            Mock, MockServer, ResponseTemplate,
+        };
+
         use super::*;
 
         #[tokio::test]
@@ -518,28 +553,31 @@ mod tests {
                 },
             );
 
-            // Mock HMS auth endpoint
-            let m = mock("POST", "/oauth2/v3/token")
-                .with_body(format!(
+            let mock_server = MockServer::start().await;
+
+            let config = HmsStateConfig::stub_with(Some(mock_server.uri()));
+
+            Mock::given(method("POST"))
+                .and(body_string(format!(
                     "grant_type=client_credentials&client_id={}&client_secret={}",
                     CLIENT_ID, CLIENT_SECRET
-                ))
-                .with_status(200)
-                .with_body(
+                )))
+                .respond_with(ResponseTemplate::new(200).set_body_string(
                     r#"{
-                        "access_token": "akssess",
-                        "expires_in": 3600,
-                        "token_type": "Bearer"
-                    }"#,
-                )
-                .create();
+                    "access_token": "akssess",
+                    "expires_in": 3600,
+                    "token_type": "Bearer"
+                }"#,
+                ))
+                .expect(2)
+                .mount(&mock_server)
+                .await;
 
             // No credentials yet
             assert!(context.credentials.lock().await.is_none());
 
             // Get new credentials
-            let credentials = context.get_active_credentials().await.unwrap();
-            m.assert();
+            let credentials = context.get_active_credentials(&config).await.unwrap();
             assert!(context.credentials.lock().await.is_some());
             assert_eq!(credentials.access_token, "akssess");
             let remaining_validity = (credentials.expiration - Instant::now()).as_secs();
@@ -547,12 +585,10 @@ mod tests {
             assert!(remaining_validity > (3600 - 180 - 10));
 
             // Get cached credentials
-            let credentials2 = context.get_active_credentials().await.unwrap();
-            m.assert(); // This fails if the endpoint is called twice
+            let credentials2 = context.get_active_credentials(&config).await.unwrap();
             assert_eq!(credentials, credentials2);
 
             // Refresh credentials
-            let m = m.expect(2);
             context
                 .credentials
                 .lock()
@@ -560,8 +596,7 @@ mod tests {
                 .as_mut()
                 .unwrap()
                 .expiration = Instant::now() - Duration::from_secs(3);
-            let credentials3 = context.get_active_credentials().await.unwrap();
-            m.assert();
+            let credentials3 = context.get_active_credentials(&config).await.unwrap();
             let remaining_validity = (credentials3.expiration - Instant::now()).as_secs();
             assert!(remaining_validity > (3600 - 180 - 10));
         }
