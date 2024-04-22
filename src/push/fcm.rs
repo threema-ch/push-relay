@@ -1,6 +1,6 @@
 //! Code related to the sending of FCM push notifications.
 
-use std::str::from_utf8;
+use std::{str::from_utf8, sync::Arc};
 
 use reqwest::{
     header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE},
@@ -10,6 +10,7 @@ use serde_derive::{Deserialize, Serialize};
 use serde_json as json;
 
 use crate::{
+    config::FcmConfig,
     errors::SendPushError,
     push::{FcmToken, ThreemaPayload},
 };
@@ -70,7 +71,7 @@ pub struct MessageResult {
 /// Send a FCM push notification.
 pub async fn send_push(
     client: &Client,
-    api_key: &str,
+    config: &Arc<FcmConfig>,
     push_token: &FcmToken,
     version: u16,
     session: &str,
@@ -95,7 +96,7 @@ pub async fn send_push(
     // Send request
     let response = client
         .post(fcm_endpoint() + FCM_PATH)
-        .header(AUTHORIZATION, &*format!("key={}", api_key))
+        .header(AUTHORIZATION, &*format!("key={}", config.api_key))
         .header(CONTENT_TYPE, "application/json")
         .header(CONTENT_LENGTH, &*payload_string.len().to_string())
         .body(payload_string)

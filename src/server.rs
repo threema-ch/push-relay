@@ -10,8 +10,9 @@ use axum::{extract::State, routing::post};
 use data_encoding::HEXLOWER_PERMISSIVE;
 use futures::future::{BoxFuture, FutureExt};
 use reqwest::{header::CONTENT_TYPE, Client as HttpClient};
-use tokio::{net::TcpListener, sync::Mutex};
+use tokio::net::TcpListener;
 
+use crate::config::FcmConfig;
 use crate::errors::PushRelayError;
 use crate::{
     config::{Config, ThreemaGatewayConfig},
@@ -33,9 +34,9 @@ static PUSH_PATH: &str = "/push";
 #[derive(Clone)]
 struct AppState {
     fcm_client: HttpClient,
-    fcm_api_key: String,
-    apns_client_prod: Arc<Mutex<ApnsClient>>,
-    apns_client_sbox: Arc<Mutex<ApnsClient>>,
+    fcm_config: Arc<FcmConfig>,
+    apns_client_prod: ApnsClient,
+    apns_client_sbox: ApnsClient,
     hms_contexts: Arc<HashMap<String, HmsContext>>,
     threema_gateway_client: HttpClient,
     threema_gateway_config: Option<ThreemaGatewayConfig>,
@@ -66,18 +67,14 @@ pub async fn serve(
     let fcm_client = http_client::make_client(90)?;
 
     // Create APNs clients
-    let apns_client_prod = Arc::new(Mutex::new(apns::create_client(
+    let apns_client_prod = apns::create_client(
         Endpoint::Production,
         apns_api_key,
         apns.team_id.clone(),
         apns.key_id.clone(),
-    )?));
-    let apns_client_sbox = Arc::new(Mutex::new(apns::create_client(
-        Endpoint::Sandbox,
-        apns_api_key,
-        apns.team_id,
-        apns.key_id,
-    )?));
+    )?;
+    let apns_client_sbox =
+        apns::create_client(Endpoint::Sandbox, apns_api_key, apns.team_id, apns.key_id)?;
 
     // Create a shared HMS HTTP client
     let hms_client = http_client::make_client(90)?;
@@ -132,7 +129,7 @@ pub async fn serve(
 
     let state = AppState {
         fcm_client: fcm_client.clone(),
-        fcm_api_key: fcm.api_key.clone(),
+        fcm_config: Arc::new(fcm),
         apns_client_prod: apns_client_prod.clone(),
         apns_client_sbox: apns_client_sbox.clone(),
         hms_contexts: hms_contexts.clone(),
@@ -351,7 +348,7 @@ async fn handle_push_request(
         PushToken::Fcm(ref token) => {
             fcm::send_push(
                 &state.fcm_client,
-                &state.fcm_api_key,
+                &state.fcm_config,
                 token,
                 version,
                 session_public_key,
@@ -365,11 +362,11 @@ async fn handle_push_request(
             let client = match endpoint.unwrap() {
                 Endpoint::Production => {
                     debug!("Using production endpoint");
-                    state.apns_client_prod.lock().await
+                    state.apns_client_prod
                 }
                 Endpoint::Sandbox => {
                     debug!("Using sandbox endpoint");
-                    state.apns_client_sbox.lock().await
+                    state.apns_client_sbox
                 }
             };
             apns::send_push(
@@ -518,9 +515,9 @@ mod tests {
         let threema_gateway_client = http_client::make_client(10).expect("threema_gateway_client");
         AppState {
             fcm_client,
-            fcm_api_key: "aassddff".into(),
-            apns_client_prod: Arc::new(Mutex::new(apns_client_prod)),
-            apns_client_sbox: Arc::new(Mutex::new(apns_client_sbox)),
+            fcm_config: FcmConfig::stub_config(),
+            apns_client_prod,
+            apns_client_sbox,
             hms_contexts: Arc::new(HashMap::new()),
             threema_gateway_client,
             threema_gateway_config: None,
