@@ -1147,7 +1147,6 @@ dependencies = [
  "form_urlencoded",
  "futures",
  "hostname",
- "lazy_static",
  "log",
  "mockito",
  "openssl",
