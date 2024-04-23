@@ -14,7 +14,7 @@
 #![allow(clippy::manual_unwrap_or)]
 
 #[macro_use]
-extern crate log;
+extern crate tracing;
 
 mod config;
 mod errors;
@@ -50,7 +50,10 @@ struct Args {
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() {
-    env_logger::init();
+    if let Err(e) = tracing_subscriber::fmt::try_init() {
+        eprintln!("Could not init tracing_subscriber: {e}");
+        process::exit(1);
+    };
 
     let args = Args::parse();
 

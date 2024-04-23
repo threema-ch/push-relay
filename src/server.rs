@@ -3,7 +3,7 @@ use std::{borrow::Cow, collections::HashMap, convert::Into, net::SocketAddr, syn
 use a2::client::{Client as ApnsClient, Endpoint};
 use a2::CollapseId;
 use axum::body::Body;
-use axum::http::StatusCode;
+use axum::http::{Request, StatusCode};
 use axum::response::Response;
 use axum::Router;
 use axum::{extract::State, routing::post};
@@ -11,6 +11,9 @@ use data_encoding::HEXLOWER_PERMISSIVE;
 use futures::future::{BoxFuture, FutureExt};
 use reqwest::{header::CONTENT_TYPE, Client as HttpClient};
 use tokio::net::TcpListener;
+use tower::ServiceBuilder;
+use tower_http::trace::{self, TraceLayer};
+use tracing::Level;
 
 use crate::errors::PushRelayError;
 use crate::push::fcm::FcmStateConfig;
@@ -151,17 +154,38 @@ pub async fn serve(
             source: e,
         })?;
 
-    axum::serve(listener, app)
-        .await
-        .map_err(|e| PushRelayError::IoError {
-            reason: "Failed to serve app",
-            source: e,
-        })
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .map_err(|e| PushRelayError::IoError {
+        reason: "Failed to serve app",
+        source: e,
+    })
 }
 
 fn get_router(state: AppState) -> Router {
     axum::Router::new()
         .route(PUSH_PATH, post(handle_push_request))
+        .layer(
+            ServiceBuilder::new().layer(
+                TraceLayer::new_for_http()
+                    .make_span_with(|req: &Request<_>| {
+                        let maybe_port = req
+                            .extensions()
+                            .get::<axum::extract::ConnectInfo<SocketAddr>>()
+                            .map(|ci| ci.0.port());
+                        const SPAN_NAME: &str = "handle_push";
+                        if let Some(port) = maybe_port {
+                            info_span!(SPAN_NAME, "type" = tracing::field::Empty, "port" = port)
+                        } else {
+                            info_span!(SPAN_NAME, "type" = tracing::field::Empty)
+                        }
+                    })
+                    .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
+            ),
+        )
         .with_state(state)
 }
 
@@ -247,8 +271,14 @@ async fn handle_push_request(
         };
     }
 
+    let push_type = find_or_default!("type", "fcm");
+    {
+        let span = tracing::Span::current();
+        span.record("type", push_type);
+    }
+
     // Get parameters
-    let push_token = match find_or_default!("type", "fcm") {
+    let push_token = match push_type {
         "gcm" | "fcm" => PushToken::Fcm(FcmToken(find_or_bad_request!("token").to_string())),
         "apns" => PushToken::Apns(ApnsToken(find_or_bad_request!("token").to_string())),
         "hms" => PushToken::Hms {
