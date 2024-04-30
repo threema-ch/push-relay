@@ -4,39 +4,44 @@ use reqwest::{Error as ReqwestError, StatusCode};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum PushRelayError {
-    #[error("APNs error: {0}")]
-    Apns(#[from] A2Error),
+pub enum InitError {
+    #[error("APNs init error: {0}")]
+    Apns(#[source] A2Error),
 
-    #[error("Reqwest error: {0}")]
-    Reqwest(#[from] ReqwestError),
+    #[error("Reqwest init error: {0}")]
+    Reqwest(#[source] ReqwestError),
+
+    #[error("FCM init error: {0}")]
+    Fcm(#[source] anyhow::Error),
 
     #[error("I/O error: {reason}: {source}")]
-    IoError {
+    Io {
         reason: &'static str,
         source: std::io::Error,
     },
 }
 
 #[derive(Error, Debug)]
+// RemoteError
 pub enum SendPushError {
+    /// The request could not be sent
     #[error("Push message could not be sent: {0}")]
-    SendError(String),
+    SendError(#[source] reqwest::Error),
 
-    // Caused by remote server. Retrying might help.
+    /// Caused by remote server. Retrying might help.
     #[error("Push message could not be processed: {0}")]
-    ProcessingRemoteError(String),
+    RemoteServer(String),
 
-    // Caused by client (e.g. bad push token). Retrying would probably not help.
+    /// Caused by client (e.g. bad push token). Retrying would probably not help.
     #[error("Push message could not be processed: {0}")]
-    ProcessingClientError(String),
+    RemoteClient(String),
 
-    // Server authentication error. Retrying might help.
+    /// Server authentication error. Retrying might help.
     #[error("Authentication error: {0}")]
-    AuthError(String),
+    RemoteAuth(String),
 
-    #[error("Other: {0}")]
-    Other(String),
+    #[error("Unspecified internal error: {0}")]
+    Internal(String),
 }
 
 #[derive(Error, Debug)]

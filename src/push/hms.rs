@@ -24,7 +24,7 @@ use reqwest::{
     header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE},
     Client, StatusCode,
 };
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json as json;
 use tokio::sync::Mutex;
 
@@ -279,14 +279,14 @@ impl HmsContext {
             .body(body)
             .send()
             .await
-            .map_err(|e| SendPushError::AuthError(e.to_string()))?;
+            .map_err(|e| SendPushError::RemoteAuth(e.to_string()))?;
 
         // Extract status
         let status = response.status();
 
         // Fetch body
         let body_bytes = response.bytes().await.map_err(|e| {
-            SendPushError::AuthError(format!("Could not read HMS auth response body: {}", e))
+            SendPushError::RemoteAuth(format!("Could not read HMS auth response body: {e}"))
         })?;
 
         // Validate status code
@@ -295,7 +295,7 @@ impl HmsContext {
                 Ok(body) => warn!("OAuth2 response: HTTP {}: {}", status, body),
                 Err(_) => warn!("OAuth2 response: HTTP {} (invalid UTF8 body)", status),
             }
-            return Err(SendPushError::AuthError(format!(
+            return Err(SendPushError::RemoteAuth(format!(
                 "Could not request HMS credentials: HTTP {}",
                 status
             )));
@@ -304,12 +304,12 @@ impl HmsContext {
 
         // Decode UTF8 bytes
         let json_body = from_utf8(&body_bytes).map_err(|_| {
-            SendPushError::AuthError("Could not decode response JSON: Invalid UTF-8".into())
+            SendPushError::RemoteAuth("Could not decode response JSON: Invalid UTF-8".into())
         })?;
 
         // Parse JSON
         let data: AuthResponse = json::from_str(json_body).map_err(|e| {
-            SendPushError::AuthError(format!(
+            SendPushError::RemoteAuth(format!(
                 "Could not decode response JSON: `{}` (Reason: {})",
                 json_body, e
             ))
@@ -384,7 +384,7 @@ pub async fn send_push(
     affiliation: Option<&str>,
     ttl: u32,
 ) -> Result<(), SendPushError> {
-    let threema_payload = ThreemaPayload::new(session, affiliation, version);
+    let threema_payload = ThreemaPayload::new(session, affiliation, version, false);
     let high_priority = context.config.high_priority.unwrap_or(false);
     let payload = Payload {
         message: Message {
@@ -427,14 +427,14 @@ pub async fn send_push(
         .body(payload_string)
         .send()
         .await
-        .map_err(|e| SendPushError::SendError(e.to_string()))?;
+        .map_err(SendPushError::SendError)?;
 
     // Extract status
     let status = response.status();
 
     // Fetch body
     let body_bytes = response.bytes().await.map_err(|e| {
-        SendPushError::AuthError(format!("Could not read HMS auth response body: {}", e))
+        SendPushError::RemoteServer(format!("Could not read HMS auth response body: {}", e))
     })?;
 
     // Decode UTF8 bytes
@@ -449,25 +449,25 @@ pub async fn send_push(
             trace!("HMS push request returned HTTP 200: {}", body);
         }
         StatusCode::BAD_REQUEST => {
-            return Err(SendPushError::ProcessingClientError(format!(
+            return Err(SendPushError::RemoteClient(format!(
                 "Bad request: {}",
                 body
             )));
         }
         StatusCode::INTERNAL_SERVER_ERROR | StatusCode::BAD_GATEWAY => {
-            return Err(SendPushError::ProcessingRemoteError(format!(
+            return Err(SendPushError::RemoteServer(format!(
                 "HMS server error: {}",
                 body
             )));
         }
         StatusCode::SERVICE_UNAVAILABLE => {
-            return Err(SendPushError::ProcessingRemoteError(format!(
+            return Err(SendPushError::RemoteServer(format!(
                 "HMS quota reached: {}",
                 body
             )));
         }
         _other => {
-            return Err(SendPushError::Other(format!(
+            return Err(SendPushError::Internal(format!(
                 "Unexpected status code: HTTP {}: {}",
                 status, body
             )));
@@ -476,7 +476,7 @@ pub async fn send_push(
 
     // Parse JSON
     let data: PushResponse = json::from_str(body).map_err(|e| {
-        SendPushError::Other(format!(
+        SendPushError::Internal(format!(
             "Could not decode response JSON: `{}` (Reason: {})",
             body, e
         ))
@@ -489,12 +489,12 @@ pub async fn send_push(
         HmsCode::Success => Ok(()),
 
         // Client errors
-        HmsCode::SomeInvalidTokens | HmsCode::InvalidTokens => Err(
-            SendPushError::ProcessingClientError("Invalid push token(s)".to_string()),
-        ),
+        HmsCode::SomeInvalidTokens | HmsCode::InvalidTokens => Err(SendPushError::RemoteClient(
+            "Invalid push token(s)".to_string(),
+        )),
 
         // Potentially temporary errors
-        HmsCode::InternalError => Err(SendPushError::ProcessingRemoteError(
+        HmsCode::InternalError => Err(SendPushError::RemoteServer(
             "HMS internal server error".to_string(),
         )),
 
@@ -502,14 +502,14 @@ pub async fn send_push(
         HmsCode::AuthenticationError | HmsCode::AuthorizationExpired => {
             // Clear credentials, since token may be invalid
             context.clear_credentials().await;
-            Err(SendPushError::ProcessingRemoteError(format!(
+            Err(SendPushError::RemoteServer(format!(
                 "Authentication error: {:?}",
                 code
             )))
         }
 
         // Other errors
-        other => Err(SendPushError::Other(format!("{}", other))),
+        other => Err(SendPushError::Internal(format!("{}", other))),
     }
 }
 
