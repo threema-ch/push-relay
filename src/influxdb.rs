@@ -1,11 +1,12 @@
 use std::str::from_utf8;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
-use reqwest::{Body, Client, StatusCode};
+use reqwest::{
+    header::{AUTHORIZATION, CONTENT_TYPE},
+    Body, Client, StatusCode,
+};
 
-use crate::errors::InfluxdbError;
-use crate::http_client::make_client;
+use crate::{errors::InfluxdbError, http_client::make_client};
 
 /// InfluxDB client.
 #[derive(Debug)]

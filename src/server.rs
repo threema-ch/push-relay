@@ -1,12 +1,17 @@
 use std::{borrow::Cow, collections::HashMap, convert::Into, net::SocketAddr, sync::Arc};
 
-use a2::client::{Client as ApnsClient, Endpoint};
-use a2::CollapseId;
-use axum::body::Body;
-use axum::http::{Request, StatusCode};
-use axum::response::Response;
-use axum::Router;
-use axum::{extract::State, routing::post};
+use a2::{
+    client::{Client as ApnsClient, Endpoint},
+    CollapseId,
+};
+use axum::{
+    body::Body,
+    extract::State,
+    http::{Request, StatusCode},
+    response::Response,
+    routing::post,
+    Router,
+};
 use data_encoding::HEXLOWER_PERMISSIVE;
 use futures::future::{BoxFuture, FutureExt};
 use reqwest::{header::CONTENT_TYPE, Client as HttpClient};
@@ -15,17 +20,15 @@ use tower::ServiceBuilder;
 use tower_http::trace::{self, TraceLayer};
 use tracing::Level;
 
-use crate::errors::PushRelayError;
-use crate::push::fcm::FcmStateConfig;
-use crate::push::hms::HmsStateConfig;
 use crate::{
     config::{Config, ThreemaGatewayConfig},
-    errors::{InfluxdbError, SendPushError, ServiceError},
+    errors::{InfluxdbError, PushRelayError, SendPushError, ServiceError},
     http_client,
     influxdb::Influxdb,
     push::{
         apns, fcm,
-        hms::{self, HmsContext},
+        fcm::FcmStateConfig,
+        hms::{self, HmsContext, HmsStateConfig},
         threema_gateway, ApnsToken, FcmToken, HmsToken, PushToken,
     },
     ThreemaGatewayPrivateKey,
