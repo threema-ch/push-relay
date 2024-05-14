@@ -10,7 +10,7 @@ pub fn make_client(pool_idle_timeout_seconds: u64) -> Result<Client, Error> {
         .pool_idle_timeout(Duration::from_secs(pool_idle_timeout_seconds))
         .http1_only()
         .use_rustls_tls()
-        .https_only(false)
-        .tls_built_in_root_certs(true)
+        .https_only(!cfg!(test))
+        .tls_built_in_native_certs(true)
         .build()
 }

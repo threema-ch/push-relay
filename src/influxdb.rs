@@ -92,10 +92,7 @@ impl Influxdb {
         }
     }
 
-    async fn log<B>(&self, body: B) -> InfluxdbResult
-    where
-        B: Into<Body>,
-    {
+    async fn log(&self, body: impl Into<Body>) -> InfluxdbResult {
         let body: Body = body.into();
 
         // Send request

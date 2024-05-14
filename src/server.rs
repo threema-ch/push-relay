@@ -27,8 +27,8 @@ use crate::{
     influxdb::Influxdb,
     push::{
         apns, fcm,
-        fcm::FcmStateConfig,
-        hms::{self, HmsContext, HmsStateConfig},
+        fcm::FcmEndpointConfig,
+        hms::{self, HmsContext, HmsEndpointConfig},
         threema_gateway, ApnsToken, FcmToken, HmsToken, PushToken,
     },
     ThreemaGatewayPrivateKey,
@@ -41,11 +41,11 @@ static PUSH_PATH: &str = "/push";
 #[derive(Clone)]
 struct AppState {
     fcm_client: HttpClient,
-    fcm_config: Arc<FcmStateConfig>,
+    fcm_config: Arc<FcmEndpointConfig>,
     apns_client_prod: ApnsClient,
     apns_client_sbox: ApnsClient,
     hms_contexts: Arc<HashMap<String, HmsContext>>,
-    hms_config: Arc<HmsStateConfig>,
+    hms_config: Arc<HmsEndpointConfig>,
     threema_gateway_client: HttpClient,
     threema_gateway_config: Option<ThreemaGatewayConfig>,
     threema_gateway_private_key: Option<ThreemaGatewayPrivateKey>,
@@ -137,11 +137,11 @@ pub async fn serve(
 
     let state = AppState {
         fcm_client: fcm_client.clone(),
-        fcm_config: FcmStateConfig::new_shared(fcm, fcm::FCM_ENDPOINT),
+        fcm_config: FcmEndpointConfig::new_shared(fcm, fcm::FCM_ENDPOINT),
         apns_client_prod: apns_client_prod.clone(),
         apns_client_sbox: apns_client_sbox.clone(),
         hms_contexts: hms_contexts.clone(),
-        hms_config: HmsStateConfig::new(),
+        hms_config: HmsEndpointConfig::new_shared(),
         threema_gateway_client: threema_gateway_client.clone(),
         threema_gateway_private_key: threema_gateway_private_key.clone(),
         threema_gateway_config: threema_gateway.clone(),
@@ -555,11 +555,11 @@ mod tests {
         let threema_gateway_client = http_client::make_client(10).expect("threema_gateway_client");
         AppState {
             fcm_client,
-            fcm_config: FcmStateConfig::stub_with(fcm_endpoint),
+            fcm_config: FcmEndpointConfig::stub_with(fcm_endpoint),
             apns_client_prod,
             apns_client_sbox,
             hms_contexts: Arc::new(HashMap::new()),
-            hms_config: HmsStateConfig::stub_with(None),
+            hms_config: HmsEndpointConfig::stub_with(None),
             threema_gateway_client,
             threema_gateway_config: None,
             threema_gateway_private_key: None,

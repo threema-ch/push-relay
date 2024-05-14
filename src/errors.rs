@@ -14,7 +14,7 @@ pub enum PushRelayError {
     #[error("Reqwest error: {0}")]
     Reqwest(#[from] ReqwestError),
 
-    #[error("{reason}: {source}")]
+    #[error("I/O error: {reason}: {source}")]
     IoError {
         reason: &'static str,
         source: std::io::Error,
@@ -57,7 +57,7 @@ pub enum InfluxdbError {
 #[derive(Debug)]
 pub struct ServiceError(anyhow::Error);
 
-// Tell axum how to convert `AppError` into a response.
+// Tell axum how to convert `ServiceError` into a response.
 impl IntoResponse for ServiceError {
     fn into_response(self) -> Response {
         (

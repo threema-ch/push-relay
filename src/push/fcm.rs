@@ -60,12 +60,12 @@ pub struct MessageResult {
 }
 
 #[derive(Debug)]
-pub struct FcmStateConfig {
+pub struct FcmEndpointConfig {
     api_key: String,
     endpoint: String,
 }
 
-impl FcmStateConfig {
+impl FcmEndpointConfig {
     pub fn new_shared(config: FcmConfig, endpoint: impl Into<String>) -> Arc<Self> {
         Arc::new(Self {
             api_key: config.api_key,
@@ -77,7 +77,7 @@ impl FcmStateConfig {
 /// Send a FCM push notification.
 pub async fn send_push(
     client: &Client,
-    config: &Arc<FcmStateConfig>,
+    config: &Arc<FcmEndpointConfig>,
     push_token: &FcmToken,
     version: u16,
     session: &str,
@@ -232,9 +232,9 @@ mod test {
         assert_eq!(json::to_string(&Priority::Normal).unwrap(), "\"normal\"");
     }
 
-    impl FcmStateConfig {
+    impl FcmEndpointConfig {
         pub fn stub_with(endpoint: Option<String>) -> Arc<Self> {
-            Arc::new(FcmStateConfig {
+            Arc::new(FcmEndpointConfig {
                 api_key: "invalid fcm api key".to_owned(),
                 endpoint: endpoint.unwrap_or_else(|| "invalid-fcm.endpoint".to_owned()),
             })

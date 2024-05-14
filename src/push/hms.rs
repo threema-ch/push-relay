@@ -34,15 +34,15 @@ use crate::{
     push::{HmsToken, ThreemaPayload},
 };
 
-pub struct HmsStateConfig {
+pub struct HmsEndpointConfig {
     login_endpoint: Cow<'static, str>,
     push_endpoint: Cow<'static, str>,
 }
 
-type SharedHmsConfig = Arc<HmsStateConfig>;
+type SharedHmsConfig = Arc<HmsEndpointConfig>;
 
-impl HmsStateConfig {
-    pub fn new() -> SharedHmsConfig {
+impl HmsEndpointConfig {
+    pub fn new_shared() -> SharedHmsConfig {
         let login_endpoint = Cow::Borrowed("https://oauth-login.cloud.huawei.com");
         let push_endpoint = Cow::Borrowed("https://push-api.cloud.huawei.com");
         Arc::new(Self {
@@ -519,7 +519,7 @@ mod tests {
 
     use crate::http_client;
 
-    impl HmsStateConfig {
+    impl HmsEndpointConfig {
         pub fn stub_with(endpoint: Option<String>) -> SharedHmsConfig {
             let endpoint = endpoint.unwrap_or_else(|| "invalid-hms.endpoint".to_owned());
             Arc::new(Self {
@@ -555,7 +555,7 @@ mod tests {
 
             let mock_server = MockServer::start().await;
 
-            let config = HmsStateConfig::stub_with(Some(mock_server.uri()));
+            let config = HmsEndpointConfig::stub_with(Some(mock_server.uri()));
 
             Mock::given(method("POST"))
                 .and(body_string(format!(
