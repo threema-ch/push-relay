@@ -1,9 +1,6 @@
 use a2::error::Error as A2Error;
-use axum::{
-    http::StatusCode,
-    response::{IntoResponse, Response},
-};
-use reqwest::Error as ReqwestError;
+use axum::response::{IntoResponse, Response};
+use reqwest::{Error as ReqwestError, StatusCode};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -54,25 +51,24 @@ pub enum InfluxdbError {
     Other(String),
 }
 
-#[derive(Debug)]
-pub struct ServiceError(anyhow::Error);
+/// Request handling error that is converted into an error response.
+///
+/// Currently all error variants result in a "HTTP 400 Bad Request" response.
+#[derive(Error, Debug)]
+pub enum ServiceError {
+    #[error("Missing content type")]
+    MissingContentType,
+    #[error("Invalid content type: {0}")]
+    InvalidContentType(String),
+    #[error("Missing parameters")]
+    MissingParams,
+    #[error("Invalid parameters")]
+    InvalidParams,
+}
 
 // Tell axum how to convert `ServiceError` into a response.
 impl IntoResponse for ServiceError {
     fn into_response(self) -> Response {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Something went wrong: {}", self.0),
-        )
-            .into_response()
-    }
-}
-
-impl<E> From<E> for ServiceError
-where
-    E: Into<anyhow::Error>,
-{
-    fn from(err: E) -> Self {
-        Self(err.into())
+        (StatusCode::BAD_REQUEST, self.to_string()).into_response()
     }
 }
