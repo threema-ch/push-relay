@@ -17,7 +17,7 @@ use a2::{
         payload::{APSAlert, APSSound, Payload, APS},
     },
     response::ErrorReason,
-    CollapseId,
+    ClientConfig, CollapseId, PushType,
 };
 
 use crate::{
@@ -28,18 +28,17 @@ use crate::{
 const PAYLOAD_KEY: &str = "3mw";
 
 /// Create a new APNs client instance.
-pub fn create_client<R, T, K>(
+pub fn create_client<S>(
     endpoint: Endpoint,
-    api_key: R,
-    team_id: T,
-    key_id: K,
+    api_key: impl Read,
+    team_id: S,
+    key_id: S,
 ) -> Result<Client, PushRelayError>
 where
-    R: Read,
-    T: Into<String>,
-    K: Into<String>,
+    S: Into<String>,
 {
-    Client::token(api_key, key_id, team_id, endpoint).map_err(Into::into)
+    let config = ClientConfig::new(endpoint);
+    Client::token(api_key, key_id, team_id, config).map_err(Into::into)
 }
 
 /// Send an APNs push notification.
@@ -65,6 +64,16 @@ pub async fn send_push(
         }
     };
 
+    // CHeck if it is a voip push
+    let is_voip = bundle_id.ends_with(".voip");
+
+    // Determine type of notification
+    let apns_push_type = Some(if is_voip {
+        PushType::Voip
+    } else {
+        PushType::Alert
+    });
+
     // Notification options
     let options = NotificationOptions {
         apns_id: None,
@@ -72,10 +81,11 @@ pub async fn send_push(
         apns_priority: Some(Priority::High),
         apns_topic: Some(bundle_id),
         apns_collapse_id: collapse_id,
+        apns_push_type,
     };
 
     // Notification payload
-    let mut payload = if bundle_id.ends_with(".voip") {
+    let mut payload = if is_voip {
         // This is a voip push, so use notification without body but `content-available` set to 1 to allow device wakeup
         // even though push is empty (silent notifications)
         DefaultNotificationBuilder::new()

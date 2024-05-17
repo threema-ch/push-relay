@@ -4,3 +4,4 @@ config.ini
 config.toml
 .idea/
 *.p8
+data

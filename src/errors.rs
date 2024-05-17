@@ -1,17 +1,21 @@
-use std::error;
-use std::fmt;
-
 use a2::error::Error as A2Error;
-use hyper::Error as HyperError;
+use axum::response::{IntoResponse, Response};
+use reqwest::{Error as ReqwestError, StatusCode};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum PushRelayError {
     #[error("APNs error: {0}")]
-    ApnsError(#[from] A2Error),
+    Apns(#[from] A2Error),
 
-    #[error("Hyper error: {0}")]
-    HyperError(#[from] HyperError),
+    #[error("Reqwest error: {0}")]
+    Reqwest(#[from] ReqwestError),
+
+    #[error("I/O error: {reason}: {source}")]
+    IoError {
+        reason: &'static str,
+        source: std::io::Error,
+    },
 }
 
 #[derive(Error, Debug)]
@@ -47,17 +51,24 @@ pub enum InfluxdbError {
     Other(String),
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct ServiceError(String);
-
-impl fmt::Display for ServiceError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ServiceError: {}", self.0)
-    }
+/// Request handling error that is converted into an error response.
+///
+/// Currently all error variants result in a "HTTP 400 Bad Request" response.
+#[derive(Error, Debug)]
+pub enum ServiceError {
+    #[error("Missing content type")]
+    MissingContentType,
+    #[error("Invalid content type: {0}")]
+    InvalidContentType(String),
+    #[error("Missing parameters")]
+    MissingParams,
+    #[error("Invalid parameters")]
+    InvalidParams,
 }
 
-impl error::Error for ServiceError {
-    fn description(&self) -> &str {
-        &self.0
+// Tell axum how to convert `ServiceError` into a response.
+impl IntoResponse for ServiceError {
+    fn into_response(self) -> Response {
+        (StatusCode::BAD_REQUEST, self.to_string()).into_response()
     }
 }

@@ -1,31 +1,23 @@
 //! Code related to the sending of FCM push notifications.
 
-use std::str::{from_utf8, FromStr};
+use std::{str::from_utf8, sync::Arc};
 
-use http::header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE};
-use http::Request;
-use hyper::{body, Body, StatusCode, Uri};
+use reqwest::{
+    header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE},
+    Client, StatusCode,
+};
 use serde_derive::{Deserialize, Serialize};
 use serde_json as json;
 
 use crate::{
+    config::FcmConfig,
     errors::SendPushError,
-    http_client::HttpClient,
     push::{FcmToken, ThreemaPayload},
 };
 
-#[cfg(test)]
-use mockito;
+pub const FCM_ENDPOINT: &str = "https://fcm.googleapis.com";
 
-#[cfg(not(test))]
-fn fcm_endpoint() -> String {
-    "https://fcm.googleapis.com".to_string()
-}
-#[cfg(test)]
-fn fcm_endpoint() -> String {
-    mockito::server_url()
-}
-static FCM_PATH: &str = "/fcm/send";
+pub const FCM_PATH: &str = "/fcm/send";
 
 /// FCM push priority.
 #[derive(Debug, Serialize)]
@@ -67,10 +59,25 @@ pub struct MessageResult {
     pub error: Option<String>,
 }
 
+#[derive(Debug)]
+pub struct FcmEndpointConfig {
+    api_key: String,
+    endpoint: String,
+}
+
+impl FcmEndpointConfig {
+    pub fn new_shared(config: FcmConfig, endpoint: impl Into<String>) -> Arc<Self> {
+        Arc::new(Self {
+            api_key: config.api_key,
+            endpoint: endpoint.into(),
+        })
+    }
+}
+
 /// Send a FCM push notification.
 pub async fn send_push(
-    client: &HttpClient,
-    api_key: &str,
+    client: &Client,
+    config: &Arc<FcmEndpointConfig>,
     push_token: &FcmToken,
     version: u16,
     session: &str,
@@ -94,20 +101,19 @@ pub async fn send_push(
 
     // Send request
     let response = client
-        .request(
-            Request::post(Uri::from_str(&(fcm_endpoint() + FCM_PATH)).unwrap())
-                .header(AUTHORIZATION, &*format!("key={}", api_key))
-                .header(CONTENT_TYPE, "application/json")
-                .header(CONTENT_LENGTH, &*payload_string.len().to_string())
-                .body(Body::from(payload_string))
-                .unwrap(),
-        )
+        .post(format!("{}{}", config.endpoint.as_str(), FCM_PATH))
+        .header(AUTHORIZATION, &*format!("key={}", config.api_key))
+        .header(CONTENT_TYPE, "application/json")
+        .header(CONTENT_LENGTH, &*payload_string.len().to_string())
+        .body(payload_string)
+        .send()
         .await
         .map_err(|e| SendPushError::SendError(e.to_string()))?;
 
     // Read fully body
     let status = response.status();
-    let body = body::to_bytes(response.into_body())
+    let body = response
+        .bytes()
         .await
         .map_err(|e| SendPushError::Other(format!("Could not read FCM response body: {}", e)))?;
 
@@ -224,5 +230,14 @@ mod test {
     fn test_priority_serialization() {
         assert_eq!(json::to_string(&Priority::High).unwrap(), "\"high\"");
         assert_eq!(json::to_string(&Priority::Normal).unwrap(), "\"normal\"");
+    }
+
+    impl FcmEndpointConfig {
+        pub fn stub_with(endpoint: Option<String>) -> Arc<Self> {
+            Arc::new(FcmEndpointConfig {
+                api_key: "invalid fcm api key".to_owned(),
+                endpoint: endpoint.unwrap_or_else(|| "invalid-fcm.endpoint".to_owned()),
+            })
+        }
     }
 }

@@ -112,7 +112,7 @@ If you want to log the pushes to InfluxDB, add the following section:
 
 Then simply run
 
-    export RUST_LOG=push_relay=debug,hyper=info,a2=info
+    export RUST_LOG=push_relay=debug,hyper=info,a2=info,tower=debug
     cargo run
 
 ...to build and start the server in debug mode.

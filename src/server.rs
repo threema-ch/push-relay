@@ -1,36 +1,34 @@
-use std::{
-    borrow::Cow,
-    collections::HashMap,
-    convert::Into,
-    future::Future,
-    net::SocketAddr,
-    pin::Pin,
-    sync::Arc,
-    task::{Context, Poll},
-};
+use std::{borrow::Cow, collections::HashMap, convert::Into, net::SocketAddr, sync::Arc};
 
-use a2::client::{Client as ApnsClient, Endpoint};
-use a2::CollapseId;
+use a2::{
+    client::{Client as ApnsClient, Endpoint},
+    CollapseId,
+};
+use axum::{
+    body::Body,
+    extract::State,
+    http::{Request, StatusCode},
+    response::Response,
+    routing::post,
+    Router,
+};
 use data_encoding::HEXLOWER_PERMISSIVE;
 use futures::future::{BoxFuture, FutureExt};
-use http::status::StatusCode;
-use hyper::{
-    body::{self, Body, Bytes},
-    header::CONTENT_TYPE,
-    server::{conn::AddrStream, Server},
-    service::{make_service_fn, Service},
-    Method, Request, Response,
-};
-use tokio::sync::Mutex;
+use reqwest::{header::CONTENT_TYPE, Client as HttpClient};
+use tokio::net::TcpListener;
+use tower::ServiceBuilder;
+use tower_http::trace::{self, TraceLayer};
+use tracing::Level;
 
 use crate::{
     config::{Config, ThreemaGatewayConfig},
     errors::{InfluxdbError, PushRelayError, SendPushError, ServiceError},
-    http_client::{self, HttpClient},
+    http_client,
     influxdb::Influxdb,
     push::{
-        apns, fcm,
-        hms::{self, HmsContext},
+        apns,
+        fcm::{self, FcmEndpointConfig},
+        hms::{self, HmsContext, HmsEndpointConfig},
         threema_gateway, ApnsToken, FcmToken, HmsToken, PushToken,
     },
     ThreemaGatewayPrivateKey,
@@ -38,6 +36,21 @@ use crate::{
 
 static COLLAPSE_KEY_PREFIX: &str = "relay";
 static TTL_DEFAULT: u32 = 90;
+static PUSH_PATH: &str = "/push";
+
+#[derive(Clone)]
+struct AppState {
+    fcm_client: HttpClient,
+    fcm_config: Arc<FcmEndpointConfig>,
+    apns_client_prod: ApnsClient,
+    apns_client_sbox: ApnsClient,
+    hms_contexts: Arc<HashMap<String, HmsContext>>,
+    hms_config: Arc<HmsEndpointConfig>,
+    threema_gateway_client: HttpClient,
+    threema_gateway_config: Option<ThreemaGatewayConfig>,
+    threema_gateway_private_key: Option<ThreemaGatewayPrivateKey>,
+    influxdb: Option<Arc<Influxdb>>,
+}
 
 /// Start the server and run infinitely.
 pub async fn serve(
@@ -59,24 +72,20 @@ pub async fn serve(
     let hms = hms.unwrap_or_default();
 
     // Create FCM HTTP client
-    let fcm_client = http_client::make_client(90);
+    let fcm_client = http_client::make_client(90)?;
 
     // Create APNs clients
-    let apns_client_prod = Arc::new(Mutex::new(apns::create_client(
+    let apns_client_prod = apns::create_client(
         Endpoint::Production,
         apns_api_key,
         apns.team_id.clone(),
         apns.key_id.clone(),
-    )?));
-    let apns_client_sbox = Arc::new(Mutex::new(apns::create_client(
-        Endpoint::Sandbox,
-        apns_api_key,
-        apns.team_id,
-        apns.key_id,
-    )?));
+    )?;
+    let apns_client_sbox =
+        apns::create_client(Endpoint::Sandbox, apns_api_key, apns.team_id, apns.key_id)?;
 
     // Create a shared HMS HTTP client
-    let hms_client = http_client::make_client(90);
+    let hms_client = http_client::make_client(90)?;
 
     // Create a HMS context for every config entry
     let hms_contexts = Arc::new(
@@ -91,7 +100,7 @@ pub async fn serve(
     );
 
     // Create Threema Gateway HTTP client
-    let threema_gateway_client = http_client::make_client(90);
+    let threema_gateway_client = http_client::make_client(90)?;
 
     // Create InfluxDB client
     let influxdb = influxdb.map(|c| {
@@ -126,142 +135,91 @@ pub async fn serve(
         debug!("Not using InfluxDB logging");
     };
 
-    // Create server
-    let make_svc = make_service_fn(|_conn: &AddrStream| {
-        let service = PushHandler {
-            fcm_client: fcm_client.clone(),
-            fcm_api_key: fcm.api_key.clone(),
-            apns_client_prod: apns_client_prod.clone(),
-            apns_client_sbox: apns_client_sbox.clone(),
-            hms_contexts: hms_contexts.clone(),
-            threema_gateway_client: threema_gateway_client.clone(),
-            threema_gateway_private_key: threema_gateway_private_key.clone(),
-            threema_gateway_config: threema_gateway.clone(),
-            influxdb: influxdb.clone(),
-        };
-        async move { Ok::<_, ServiceError>(service) }
-    });
-    let server = Server::bind(&listen_on).serve(make_svc);
+    let state = AppState {
+        fcm_client: fcm_client.clone(),
+        fcm_config: FcmEndpointConfig::new_shared(fcm, fcm::FCM_ENDPOINT),
+        apns_client_prod: apns_client_prod.clone(),
+        apns_client_sbox: apns_client_sbox.clone(),
+        hms_contexts: hms_contexts.clone(),
+        hms_config: HmsEndpointConfig::new_shared(),
+        threema_gateway_client: threema_gateway_client.clone(),
+        threema_gateway_private_key: threema_gateway_private_key.clone(),
+        threema_gateway_config: threema_gateway.clone(),
+        influxdb: influxdb.clone(),
+    };
 
-    // Run until completion
-    server.await?;
-    Ok(())
+    let app = get_router(state);
+
+    let listener = TcpListener::bind(listen_on)
+        .await
+        .map_err(|e| PushRelayError::IoError {
+            reason: "Failed to bind to address",
+            source: e,
+        })?;
+
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .map_err(|e| PushRelayError::IoError {
+        reason: "Failed to serve app",
+        source: e,
+    })
 }
 
-/// The server endpoint that accepts incoming push requests.
-pub struct PushHandler {
-    fcm_client: HttpClient,
-    fcm_api_key: String,
-    apns_client_prod: Arc<Mutex<ApnsClient>>,
-    apns_client_sbox: Arc<Mutex<ApnsClient>>,
-    hms_contexts: Arc<HashMap<String, HmsContext>>,
-    threema_gateway_client: HttpClient,
-    threema_gateway_config: Option<ThreemaGatewayConfig>,
-    threema_gateway_private_key: Option<ThreemaGatewayPrivateKey>,
-    influxdb: Option<Arc<Influxdb>>,
-}
-
-mod responses {
-    use super::*;
-
-    /// Return a generic "400 bad request" response.
-    pub fn bad_request(body: impl Into<Body>) -> Response<Body> {
-        Response::builder()
-            .status(StatusCode::BAD_REQUEST)
-            .header(CONTENT_TYPE, "text/plain")
-            .body(body.into())
-            .unwrap()
-    }
-
-    /// Return a generic "404 not found" response.
-    pub fn not_found() -> Response<Body> {
-        Response::builder()
-            .status(StatusCode::NOT_FOUND)
-            .header(CONTENT_TYPE, "text/plain")
-            .body(Body::from("Not found"))
-            .unwrap()
-    }
-
-    /// Return a generic "405 method not allowed" response.
-    pub fn method_not_allowed() -> Response<Body> {
-        Response::builder()
-            .status(StatusCode::METHOD_NOT_ALLOWED)
-            .header(CONTENT_TYPE, "text/plain")
-            .body(Body::from("Method not allowed"))
-            .unwrap()
-    }
-
-    /// Return a generic "500 internal server error" response.
-    pub fn internal_server_error() -> Response<Body> {
-        Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .header(CONTENT_TYPE, "text/plain")
-            .body(Body::from("Internal server error"))
-            .unwrap()
-    }
+fn get_router(state: AppState) -> Router {
+    axum::Router::new()
+        .route(PUSH_PATH, post(handle_push_request))
+        .layer(
+            ServiceBuilder::new().layer(
+                TraceLayer::new_for_http()
+                    .make_span_with(|req: &Request<_>| {
+                        let maybe_port = req
+                            .extensions()
+                            .get::<axum::extract::ConnectInfo<SocketAddr>>()
+                            .map(|ci| ci.0.port());
+                        const SPAN_NAME: &str = "handle_push";
+                        if let Some(port) = maybe_port {
+                            info_span!(SPAN_NAME, "type" = tracing::field::Empty, "port" = port)
+                        } else {
+                            info_span!(SPAN_NAME, "type" = tracing::field::Empty)
+                        }
+                    })
+                    .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
+            ),
+        )
+        .with_state(state)
 }
 
 /// Main push handling entry point.
 ///
 /// Handle a request, return a response.
 async fn handle_push_request(
-    req: Request<Body>,
-    fcm_client: HttpClient,
-    fcm_api_key: String,
-    apns_client_prod: Arc<Mutex<ApnsClient>>,
-    apns_client_sbox: Arc<Mutex<ApnsClient>>,
-    hms_contexts: Arc<HashMap<String, HmsContext>>,
-    threema_gateway_client: HttpClient,
-    threema_gateway_config: Option<ThreemaGatewayConfig>,
-    threema_gateway_private_key: Option<ThreemaGatewayPrivateKey>,
-    influxdb: Option<Arc<Influxdb>>,
-) -> Result<Response<Body>, ServiceError> {
-    debug!("{} {}", req.method(), req.uri());
-
-    // Verify path
-    if req.uri().path() != "/push" {
-        return Ok(responses::not_found());
-    }
-
-    // Verify method
-    if req.method() != Method::POST {
-        return Ok(responses::method_not_allowed());
-    }
-
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+    body: axum::body::Bytes,
+) -> Result<Response, ServiceError> {
     // Verify content type
-    let content_type = req
-        .headers()
-        .get(CONTENT_TYPE)
-        .and_then(|h| h.to_str().ok());
+    let content_type = headers.get(CONTENT_TYPE).and_then(|h| h.to_str().ok());
     match content_type {
         Some(ct) if ct.starts_with("application/x-www-form-urlencoded") => {}
         Some(ct) => {
             warn!("Bad request, invalid content type: {}", ct);
-            return Ok(responses::bad_request(format!(
-                "Invalid content type: {}",
-                ct
-            )));
+            return Err(ServiceError::InvalidContentType(ct.to_owned()));
         }
         None => {
             warn!("Bad request, missing content type");
-            return Ok(responses::bad_request("Missing content type"));
+            return Err(ServiceError::MissingContentType);
         }
     }
 
-    // Parse request body
-    let body: Bytes = match body::to_bytes(req.into_body()).await {
-        Ok(bytes) => bytes,
-        Err(e) => {
-            error!("Could not convert body to bytes: {}", e);
-            return Ok(responses::internal_server_error());
-        }
-    };
     let parsed = form_urlencoded::parse(&body).collect::<Vec<_>>();
     trace!("Request params: {:?}", parsed);
 
     // Validate parameters
     if parsed.is_empty() {
-        return Ok(responses::bad_request("Invalid or missing parameters"));
+        return Err(ServiceError::MissingParams);
     }
 
     /// Iterate over parameters and find first matching key.
@@ -283,7 +241,7 @@ async fn handle_push_request(
                 Some(v) => v,
                 None => {
                     warn!("Missing request parameter: {}", $name);
-                    return Ok(responses::bad_request("Invalid or missing parameters"));
+                    return Err(ServiceError::MissingParams);
                 }
             }
         };
@@ -300,8 +258,14 @@ async fn handle_push_request(
         };
     }
 
+    let push_type = find_or_default!("type", "fcm");
+    {
+        let span = tracing::Span::current();
+        span.record("type", push_type);
+    }
+
     // Get parameters
-    let push_token = match find_or_default!("type", "fcm") {
+    let push_token = match push_type {
         "gcm" | "fcm" => PushToken::Fcm(FcmToken(find_or_bad_request!("token").to_string())),
         "apns" => PushToken::Apns(ApnsToken(find_or_bad_request!("token").to_string())),
         "hms" => PushToken::Hms {
@@ -312,7 +276,7 @@ async fn handle_push_request(
             let identity = find_or_bad_request!("identity").to_string();
             if identity.len() != 8 || identity.starts_with('*') {
                 warn!("Got push request with invalid identity: {}", identity);
-                return Ok(responses::bad_request("Invalid or missing parameters"));
+                return Err(ServiceError::InvalidParams);
             }
             let public_key_hex = find_or_bad_request!("public_key");
             if public_key_hex.len() != 64 {
@@ -320,21 +284,21 @@ async fn handle_push_request(
                     "Got push request with invalid public key length: {}",
                     public_key_hex.len()
                 );
-                return Ok(responses::bad_request("Invalid or missing parameters"));
+                return Err(ServiceError::InvalidParams);
             }
             let Ok(public_key) = HEXLOWER_PERMISSIVE.decode(public_key_hex.as_bytes()) else {
                 warn!(
                     "Got push request with invalid public key: {}",
                     public_key_hex
                 );
-                return Ok(responses::bad_request("Invalid or missing parameters"));
+                return Err(ServiceError::InvalidParams);
             };
             let Ok(public_key) = public_key.try_into() else {
                 warn!(
                     "Got push request with invalid public key: {}",
                     public_key_hex
                 );
-                return Ok(responses::bad_request("Invalid or missing parameters"));
+                return Err(ServiceError::InvalidParams);
             };
             PushToken::ThreemaGateway {
                 identity,
@@ -343,7 +307,7 @@ async fn handle_push_request(
         }
         other => {
             warn!("Got push request with invalid token type: {}", other);
-            return Ok(responses::bad_request("Invalid or missing parameters"));
+            return Err(ServiceError::InvalidParams);
         }
     };
     let session_public_key = find_or_bad_request!("session");
@@ -352,7 +316,7 @@ async fn handle_push_request(
         Ok(parsed) => parsed,
         Err(e) => {
             warn!("Got push request with invalid version param: {:?}", e);
-            return Ok(responses::bad_request("Invalid or missing parameters"));
+            return Err(ServiceError::InvalidParams);
         }
     };
     let affiliation = find!("affiliation").map(Cow::as_ref);
@@ -361,7 +325,7 @@ async fn handle_push_request(
         // Parsing as u32 succeeded
         Some(Ok(val)) => val,
         // Parsing as u32 failed
-        Some(Err(_)) => return Ok(responses::bad_request("Invalid or missing parameters")),
+        Some(Err(_)) => return Err(ServiceError::InvalidParams),
         // No TTL value was specified
         None => TTL_DEFAULT,
     };
@@ -375,11 +339,11 @@ async fn handle_push_request(
             let endpoint = Some(match endpoint_str.as_ref() {
                 "p" => Endpoint::Production,
                 "s" => Endpoint::Sandbox,
-                _ => return Ok(responses::bad_request("Invalid or missing parameters")),
+                _ => return Err(ServiceError::InvalidParams),
             });
             let collapse_id = match collapse_key.as_deref().map(CollapseId::new) {
                 Some(Ok(id)) => Some(id),
-                Some(Err(_)) => return Ok(responses::bad_request("Invalid or missing parameters")),
+                Some(Err(_)) => return Err(ServiceError::InvalidParams),
                 None => None,
             };
             (bundle_id, endpoint, collapse_id)
@@ -403,8 +367,8 @@ async fn handle_push_request(
     let push_result = match push_token {
         PushToken::Fcm(ref token) => {
             fcm::send_push(
-                &fcm_client,
-                &fcm_api_key,
+                &state.fcm_client,
+                &state.fcm_config,
                 token,
                 version,
                 session_public_key,
@@ -418,11 +382,11 @@ async fn handle_push_request(
             let client = match endpoint.unwrap() {
                 Endpoint::Production => {
                     debug!("Using production endpoint");
-                    apns_client_prod.lock().await
+                    state.apns_client_prod
                 }
                 Endpoint::Sandbox => {
                     debug!("Using sandbox endpoint");
-                    apns_client_sbox.lock().await
+                    state.apns_client_sbox
                 }
             };
             apns::send_push(
@@ -440,11 +404,12 @@ async fn handle_push_request(
         PushToken::Hms {
             ref token,
             ref app_id,
-        } => match hms_contexts.get(app_id) {
+        } => match state.hms_contexts.get(app_id) {
             // We found a context for this App ID
             Some(context) => {
                 hms::send_push(
                     context,
+                    &state.hms_config,
                     token,
                     version,
                     session_public_key,
@@ -463,11 +428,12 @@ async fn handle_push_request(
             ref identity,
             ref public_key,
         } => {
-            if let (Some(threema_gateway_config), Some(threema_gateway_private_key)) =
-                (threema_gateway_config, threema_gateway_private_key)
-            {
+            if let (Some(threema_gateway_config), Some(threema_gateway_private_key)) = (
+                state.threema_gateway_config,
+                state.threema_gateway_private_key,
+            ) {
                 threema_gateway::send_push(
-                    &threema_gateway_client,
+                    &state.threema_gateway_client,
                     &threema_gateway_config.base_url,
                     &threema_gateway_config.secret,
                     &threema_gateway_config.identity,
@@ -489,7 +455,7 @@ async fn handle_push_request(
     };
 
     // Log to InfluxDB
-    if let Some(influxdb) = influxdb {
+    if let Some(influxdb) = state.influxdb {
         let log_result = influxdb
             .log_push(push_token.abbrev(), version, push_result.is_ok())
             .await;
@@ -525,74 +491,29 @@ async fn handle_push_request(
     }
 }
 
-impl Service<Request<Body>> for PushHandler {
-    type Response = Response<Body>;
-    type Error = ServiceError;
-    #[allow(clippy::type_complexity)]
-    type Future =
-        Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send + 'static>>;
-
-    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    /// Main service entry point.
-    fn call(&mut self, req: Request<Body>) -> Self::Future {
-        // Delegate to async fn
-        let fcm_client = self.fcm_client.clone();
-        let fcm_api_key = self.fcm_api_key.clone();
-        let apns_client_prod = self.apns_client_prod.clone();
-        let apns_client_sbox = self.apns_client_sbox.clone();
-        let hms_contexts = self.hms_contexts.clone();
-        let threema_gateway_client = self.threema_gateway_client.clone();
-        let threema_gateway_config = self.threema_gateway_config.clone();
-        let threema_gateway_private_key = self.threema_gateway_private_key.clone();
-        let influxdb = self.influxdb.clone();
-        let fut = async move {
-            let res = handle_push_request(
-                req,
-                fcm_client,
-                fcm_api_key,
-                apns_client_prod,
-                apns_client_sbox,
-                hms_contexts,
-                threema_gateway_client,
-                threema_gateway_config,
-                threema_gateway_private_key,
-                influxdb,
-            )
-            .await;
-            match res {
-                Ok(ref resp) => {
-                    let status = resp.status();
-                    if status.is_success() {
-                        debug!("Returning HTTP {}", status);
-                    } else {
-                        info!("Returning HTTP {}", status);
-                    }
-                }
-                Err(ref e) => warn!("Request processing failed: {}", e),
-            }
-            res
-        };
-        Box::pin(fut)
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use hyper::Body;
-    use mockito::{mock, Matcher};
+    use axum::http::{Request, Response};
+    use futures::StreamExt;
     use openssl::{
         ec::{EcGroup, EcKey},
         nid::Nid,
     };
+    use tower::ServiceExt;
+    use wiremock::{
+        matchers::{body_partial_json, method, path},
+        Mock, MockServer, ResponseTemplate,
+    };
 
     use super::*;
 
-    async fn get_body(body: Body) -> String {
-        let bytes = body::to_bytes(body).await.unwrap();
-        ::std::str::from_utf8(&bytes).unwrap().to_string()
+    async fn get_body(res: Response<Body>) -> String {
+        let mut full_body = Vec::new();
+        let mut body = res.into_body().into_data_stream();
+        while let Some(chunk) = body.next().await {
+            full_body.extend_from_slice(&chunk.unwrap());
+        }
+        ::std::str::from_utf8(&full_body).unwrap().to_string()
     }
 
     fn get_apns_test_key() -> Vec<u8> {
@@ -602,8 +523,8 @@ mod tests {
         key.private_key_to_pem().unwrap()
     }
 
-    fn get_handler() -> PushHandler {
-        let fcm_client = http_client::make_client(10);
+    fn get_test_state(fcm_endpoint: Option<String>) -> AppState {
+        let fcm_client = http_client::make_client(10).expect("fcm_client");
         let api_key = get_apns_test_key();
         let apns_client_prod = apns::create_client(
             Endpoint::Production,
@@ -615,13 +536,14 @@ mod tests {
         let apns_client_sbox =
             apns::create_client(Endpoint::Sandbox, api_key.as_slice(), "team_id", "key_id")
                 .unwrap();
-        let threema_gateway_client = http_client::make_client(10);
-        PushHandler {
+        let threema_gateway_client = http_client::make_client(10).expect("threema_gateway_client");
+        AppState {
             fcm_client,
-            fcm_api_key: "aassddff".into(),
-            apns_client_prod: Arc::new(Mutex::new(apns_client_prod)),
-            apns_client_sbox: Arc::new(Mutex::new(apns_client_sbox)),
+            fcm_config: FcmEndpointConfig::stub_with(fcm_endpoint),
+            apns_client_prod,
+            apns_client_sbox,
             hms_contexts: Arc::new(HashMap::new()),
+            hms_config: HmsEndpointConfig::stub_with(None),
             threema_gateway_client,
             threema_gateway_config: None,
             threema_gateway_private_key: None,
@@ -629,154 +551,172 @@ mod tests {
         }
     }
 
+    fn get_test_app_with(fcm_endpoint: String) -> Router {
+        get_router(get_test_state(Some(fcm_endpoint)))
+    }
+
+    fn get_test_app() -> Router {
+        get_router(get_test_state(None))
+    }
+
     /// Handle invalid paths
     #[tokio::test]
     async fn test_invalid_path() {
-        let mut handler = get_handler();
+        let app = get_test_app();
 
-        let req = Request::post("/larifari").body(Body::empty()).unwrap();
-        let resp = handler.call(req).await.unwrap();
+        let req = Request::builder().uri("/").body(Body::empty()).unwrap();
 
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        let response = app.oneshot(req).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
     /// Handle invalid methods
     #[tokio::test]
     async fn test_invalid_method() {
-        let mut handler = get_handler();
+        let app = get_test_app();
 
-        let req = Request::get("/push").body(Body::empty()).unwrap();
-        let resp = handler.call(req).await.unwrap();
+        let req = Request::builder()
+            .method("GET")
+            .uri(PUSH_PATH)
+            .body(Body::empty())
+            .unwrap();
 
-        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+        let response = app.oneshot(req).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 
     /// Handle invalid request content type
     #[tokio::test]
     async fn test_invalid_contenttype() {
-        let mut handler = get_handler();
+        let app = get_test_app();
 
-        let req = Request::post("/push")
+        let req = Request::post(PUSH_PATH)
             .header(CONTENT_TYPE, "text/plain")
             .body(Body::empty())
             .unwrap();
-        let resp = handler.call(req).await.unwrap();
+
+        let resp = app.oneshot(req).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let body = get_body(resp.into_body()).await;
+        let body = get_body(resp).await;
         assert_eq!(&body, "Invalid content type: text/plain");
     }
 
     /// Handle missing request content type
     #[tokio::test]
     async fn test_missing_contenttype() {
-        let mut handler = get_handler();
+        let app = get_test_app();
 
-        let req = Request::post("/push").body(Body::empty()).unwrap();
-        let resp = handler.call(req).await.unwrap();
+        let req = Request::post(PUSH_PATH).body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let body = get_body(resp.into_body()).await;
+        let body = get_body(resp).await;
         assert_eq!(&body, "Missing content type");
     }
 
     /// A request without parameters should result in a HTTP 400 response.
     #[tokio::test]
     async fn test_no_params() {
-        let mut handler = get_handler();
+        let app = get_test_app();
 
-        let req = Request::post("/push")
+        let req = Request::post(PUSH_PATH)
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
             .body(Body::empty())
             .unwrap();
-        let resp = handler.call(req).await.unwrap();
+        let resp = app.oneshot(req).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let body = get_body(resp.into_body()).await;
-        assert_eq!(&body, "Invalid or missing parameters");
+        let body = get_body(resp).await;
+        assert_eq!(&body, "Missing parameters");
     }
 
     /// A request with missing parameters should result in a HTTP 400 response.
     #[tokio::test]
     async fn test_missing_params() {
-        let mut handler = get_handler();
+        let app = get_test_app();
 
-        let req = Request::post("/push")
+        let req = Request::post(PUSH_PATH)
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .body("token=1234".into())
+            .body("token=1234".to_string())
             .unwrap();
-        let resp = handler.call(req).await.unwrap();
+        let resp = app.oneshot(req).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let body = get_body(resp.into_body()).await;
-        assert_eq!(&body, "Invalid or missing parameters");
+        let body = get_body(resp).await;
+        assert_eq!(&body, "Missing parameters");
     }
 
     /// A request with missing parameters should result in a HTTP 400 response.
     #[tokio::test]
     async fn test_missing_params_apns() {
-        let mut handler = get_handler();
+        let app = get_test_app();
 
-        let req = Request::post("/push")
+        let req = Request::post(PUSH_PATH)
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .body("type=apns&token=1234&session=123deadbeef&version=3".into())
+            .body("type=apns&token=1234&session=123deadbeef&version=3".to_string())
             .unwrap();
-        let resp = handler.call(req).await.unwrap();
+        let resp = app.oneshot(req).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let body = get_body(resp.into_body()).await;
-        assert_eq!(&body, "Invalid or missing parameters");
+        let body = get_body(resp).await;
+        assert_eq!(&body, "Missing parameters");
     }
 
     /// A request with bad parameters should result in a HTTP 400 response.
     #[tokio::test]
     async fn test_bad_endpoint() {
-        let mut handler = get_handler();
+        let app = get_test_app();
 
-        let req = Request::post("/push")
+        let req = Request::post(PUSH_PATH)
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
             .body(
                 "type=apns&token=1234&session=123deadbeef&version=3&bundleid=jklö&endpoint=q"
-                    .into(),
+                    .to_string(),
             )
             .unwrap();
-        let resp = handler.call(req).await.unwrap();
+        let resp = app.oneshot(req).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let body = get_body(resp.into_body()).await;
-        assert_eq!(&body, "Invalid or missing parameters");
+        let body = get_body(resp).await;
+        assert_eq!(&body, "Invalid parameters");
     }
 
-    /// A request wit missing parameters should result in a HTTP 400 response.
+    /// A request with missing parameters should result in a HTTP 400 response.
     #[tokio::test]
     async fn test_bad_token_type() {
-        let mut handler = get_handler();
+        let app = get_test_app();
 
-        let req = Request::post("/push")
+        let req = Request::post(PUSH_PATH)
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .body("type=abc&token=aassddff&session=deadbeef&version=1".into())
+            .body("type=abc&token=aassddff&session=deadbeef&version=1".to_string())
             .unwrap();
-        let resp = handler.call(req).await.unwrap();
+        let resp = app.oneshot(req).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let body = get_body(resp.into_body()).await;
-        assert_eq!(&body, "Invalid or missing parameters");
+        let body = get_body(resp).await;
+        assert_eq!(&body, "Invalid parameters");
     }
 
     /// A request with invalid TTL parameter should result in a HTTP 400 response.
     #[tokio::test]
     async fn test_invalid_ttl() {
-        let mut handler = get_handler();
+        let app = get_test_app();
 
-        let req = Request::post("/push")
+        let req = Request::post(PUSH_PATH)
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .body("type=fcm&token=aassddff&session=deadbeef&version=1&ttl=9999999999999999".into())
+            .body(
+                "type=fcm&token=aassddff&session=deadbeef&version=1&ttl=9999999999999999"
+                    .to_string(),
+            )
             .unwrap();
-        let resp = handler.call(req).await.unwrap();
+        let resp = app.oneshot(req).await.unwrap();
 
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let body = get_body(resp.into_body()).await;
-        assert_eq!(&body, "Invalid or missing parameters");
+        let body = get_body(resp).await;
+        assert_eq!(&body, "Invalid parameters");
     }
 
     #[tokio::test]
@@ -785,37 +725,45 @@ mod tests {
         let to = "aassddff";
         let session = "deadbeef";
 
-        let m = mock("POST", "/fcm/send")
-            .match_body(Matcher::AllOf(vec![
-                Matcher::Regex(format!("\"to\":\"{}\"", to)),
-                Matcher::Regex(format!("\"priority\":\"high\"")),
-                Matcher::Regex(format!("\"time_to_live\":90")),
-                Matcher::Regex(format!("\"wcs\":\"{}\"", session)),
-                Matcher::Regex(format!("\"wca\":null")),
-                Matcher::Regex(format!("\"wcv\":1")),
-            ]))
-            .with_status(200)
-            .with_body(
+        let mock_server = MockServer::start().await;
+
+        let expected_body = serde_json::json!({
+            "to": to,
+            "priority": "high",
+            "time_to_live": 90,
+            "data": {
+                "wcs": session,
+                "wca": null,
+                "wcv": 1
+            }
+        });
+
+        Mock::given(method("POST"))
+            .and(path(fcm::FCM_PATH))
+            .and(body_partial_json(expected_body))
+            .respond_with(ResponseTemplate::new(200).set_body_string(
                 r#"{
-                    "multicast_id": 1,
-                    "success": 1,
-                    "failure": 0,
-                    "canonical_ids": 0,
-                    "results": null
-                }"#,
-            )
-            .create();
+                "multicast_id": 1,
+                "success": 1,
+                "failure": 0,
+                "canonical_ids": 0,
+                "results": null
+            }"#,
+            ))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
 
-        let mut handler = get_handler();
+        let app = get_test_app_with(mock_server.uri());
 
-        let req = Request::post("/push")
+        let req = Request::post(PUSH_PATH)
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .body(format!("type=fcm&token={}&session={}&version=1", to, session).into())
+            .body(format!(
+                "type=fcm&token={}&session={}&version=1",
+                to, session
+            ))
             .unwrap();
-        let resp = handler.call(req).await.unwrap();
-
-        // Ensure that the mock was properly called
-        m.assert();
+        let resp = app.oneshot(req).await.unwrap();
 
         // Validate response
         assert_eq!(resp.status(), StatusCode::NO_CONTENT);
@@ -826,9 +774,11 @@ mod tests {
     }
 
     async fn test_fcm_process_error(msg: &str, status_code: StatusCode) {
-        let _m = mock("POST", "/fcm/send")
-            .with_status(200)
-            .with_body(format!(
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path(fcm::FCM_PATH))
+            .respond_with(ResponseTemplate::new(200).set_body_string(format!(
                 r#"{{
                     "multicast_id": 1,
                     "success": 0,
@@ -837,23 +787,25 @@ mod tests {
                     "results": [{{"error": "{}"}}]
                 }}"#,
                 msg,
-            ))
-            .create();
+            )))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
 
-        let mut handler = get_handler();
+        let app = get_test_app_with(mock_server.uri());
 
-        let req = Request::post("/push")
+        let req = Request::post(PUSH_PATH)
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .body("type=fcm&token=aassddff&session=deadbeef&version=1".into())
+            .body("type=fcm&token=aassddff&session=deadbeef&version=1".to_string())
             .unwrap();
-        let resp = handler.call(req).await.unwrap();
+        let resp = app.oneshot(req).await.unwrap();
 
         assert_eq!(resp.status(), status_code);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap().to_str().unwrap(),
             "text/plain",
         );
-        let body = get_body(resp.into_body()).await;
+        let body = get_body(resp).await;
         assert_eq!(&body, "Push not successful");
     }
 
