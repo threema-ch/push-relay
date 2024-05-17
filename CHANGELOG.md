@@ -13,7 +13,12 @@ Possible log types:
 
 ### Unreleased
 
+### [v4.3.0][v4.3.0] (2024-05-17)
+
 - [changed] Updated dependencies
+- [changed] Migrated from `hyper` to `reqwest` (client) and `axum` (server)
+- [changed] Switch from `log` crate to `tracing`
+- [fixed] Prevent potential panic when handling APNs push requests
 
 ### [v4.2.3][v4.2.3] (2024-02-02)
 
@@ -121,4 +126,5 @@ Possible log types:
 [v4.2.0]: https://github.com/threema-ch/push-relay/compare/v4.1.1...v4.2.0
 [v4.2.1]: https://github.com/threema-ch/push-relay/compare/v4.2.0...v4.2.1
 [v4.2.2]: https://github.com/threema-ch/push-relay/compare/v4.2.1...v4.2.2
-[v4.2.2]: https://github.com/threema-ch/push-relay/compare/v4.2.2...v4.2.3
+[v4.2.3]: https://github.com/threema-ch/push-relay/compare/v4.2.2...v4.2.3
+[v4.3.0]: https://github.com/threema-ch/push-relay/compare/v4.2.3...v4.3.0
