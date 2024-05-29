@@ -13,7 +13,11 @@ Possible log types:
 
 ### Unreleased
 
+### [v5.0.0][v5.0.0] (2024-05-29)
+
 - [changed] Migrate from legacy FCM HTTP API to HTTP v1
+
+Note that the FCM config format has changed! See README for details.
 
 ### [v4.3.0][v4.3.0] (2024-05-17)
 
@@ -130,3 +134,4 @@ Possible log types:
 [v4.2.2]: https://github.com/threema-ch/push-relay/compare/v4.2.1...v4.2.2
 [v4.2.3]: https://github.com/threema-ch/push-relay/compare/v4.2.2...v4.2.3
 [v4.3.0]: https://github.com/threema-ch/push-relay/compare/v4.2.3...v4.3.0
+[v5.0.0]: https://github.com/threema-ch/push-relay/compare/v4.3.0...v5.0.0
