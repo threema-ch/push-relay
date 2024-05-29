@@ -65,7 +65,7 @@ pub async fn send_push(
     session: &str,
     affiliation: Option<&str>,
 ) -> Result<(), SendPushError> {
-    let payload = ThreemaPayload::new(session, affiliation, version);
+    let payload = ThreemaPayload::new(session, affiliation, version, false);
     trace!("Sending payload: {:#?}", payload);
 
     // Encode and encrypt
@@ -89,7 +89,7 @@ pub async fn send_push(
         .concat();
         cipher
             .encrypt_in_place(&nonce, b"", &mut message)
-            .map_err(|_| SendPushError::Other("Encryption failed".into()))?;
+            .map_err(|_| SendPushError::Internal("Encryption failed".into()))?;
         (nonce, message)
     };
 
@@ -112,24 +112,22 @@ pub async fn send_push(
         .body(body)
         .send()
         .await
-        .map_err(|e| SendPushError::SendError(e.to_string()))?;
+        .map_err(SendPushError::SendError)?;
 
     // Check status code
     match response.status() {
         StatusCode::OK => Ok(()),
-        StatusCode::BAD_REQUEST => Err(SendPushError::ProcessingRemoteError(
+        StatusCode::BAD_REQUEST => Err(SendPushError::RemoteServer(
             "Receiver identity invalid".into(),
         )),
-        StatusCode::UNAUTHORIZED => Err(SendPushError::ProcessingRemoteError(
+        StatusCode::UNAUTHORIZED => Err(SendPushError::RemoteServer(
             "Unauthorized. Is the API secret correct?".into(),
         )),
-        StatusCode::PAYMENT_REQUIRED => Err(SendPushError::ProcessingRemoteError(
-            "Out of credits".into(),
-        )),
-        StatusCode::PAYLOAD_TOO_LARGE => Err(SendPushError::ProcessingRemoteError(
-            "Message too long".into(),
-        )),
-        status => Err(SendPushError::Other(format!(
+        StatusCode::PAYMENT_REQUIRED => Err(SendPushError::RemoteServer("Out of credits".into())),
+        StatusCode::PAYLOAD_TOO_LARGE => {
+            Err(SendPushError::RemoteServer("Message too long".into()))
+        }
+        status => Err(SendPushError::Internal(format!(
             "Unknown error: Status {}",
             status
         ))),

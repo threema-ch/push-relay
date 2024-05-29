@@ -2,7 +2,8 @@
 
 use std::{collections::HashMap, fs::File, io::Read, path::Path};
 
-use serde_derive::Deserialize;
+use base64::{engine::general_purpose, Engine};
+use serde::{de::Error as DeserializeError, Deserialize, Deserializer};
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
@@ -14,8 +15,38 @@ pub struct Config {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct FcmApplicationSecret(#[serde(deserialize_with = "deserialize_base64")] Vec<u8>);
+
+impl AsRef<[u8]> for FcmApplicationSecret {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+fn deserialize_base64<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    String::deserialize(deserializer).and_then(|string| {
+        general_purpose::STANDARD
+            .decode(string)
+            .map_err(|err: base64::DecodeError| DeserializeError::custom(err.to_string()))
+    })
+}
+
+impl<S: Into<Vec<u8>>> From<S> for FcmApplicationSecret {
+    fn from(value: S) -> Self {
+        let vec = value.into();
+        FcmApplicationSecret(vec)
+    }
+}
+
+#[derive(Debug, Deserialize)]
 pub struct FcmConfig {
-    pub api_key: String,
+    #[serde(rename = "service_account_key_base64")]
+    pub service_account_key: FcmApplicationSecret,
+    pub project_id: u64,
+    pub max_retries: u8,
 }
 
 #[derive(Debug, Deserialize)]

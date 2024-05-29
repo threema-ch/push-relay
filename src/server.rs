@@ -22,14 +22,14 @@ use tracing::Level;
 
 use crate::{
     config::{Config, ThreemaGatewayConfig},
-    errors::{InfluxdbError, PushRelayError, SendPushError, ServiceError},
+    errors::{InfluxdbError, InitError, SendPushError, ServiceError},
     http_client,
     influxdb::Influxdb,
     push::{
-        apns,
-        fcm::{self, FcmEndpointConfig},
+        apns, fcm,
+        fcm::{AndroidTtlSeconds, FcmState, HttpOauthTokenObtainer, RequestOauthToken},
         hms::{self, HmsContext, HmsEndpointConfig},
-        threema_gateway, ApnsToken, FcmToken, HmsToken, PushToken,
+        threema_gateway, ApnsToken, FcmToken, HmsToken, PushToken, ThreemaPayload,
     },
     ThreemaGatewayPrivateKey,
 };
@@ -39,9 +39,11 @@ static TTL_DEFAULT: u32 = 90;
 static PUSH_PATH: &str = "/push";
 
 #[derive(Clone)]
-struct AppState {
-    fcm_client: HttpClient,
-    fcm_config: Arc<FcmEndpointConfig>,
+struct AppState<R = HttpOauthTokenObtainer>
+where
+    R: fcm::RequestOauthToken,
+{
+    fcm_state: Arc<FcmState<R>>,
     apns_client_prod: ApnsClient,
     apns_client_sbox: ApnsClient,
     hms_contexts: Arc<HashMap<String, HmsContext>>,
@@ -58,7 +60,7 @@ pub async fn serve(
     apns_api_key: &[u8],
     threema_gateway_private_key: Option<ThreemaGatewayPrivateKey>,
     listen_on: SocketAddr,
-) -> Result<(), PushRelayError> {
+) -> Result<(), InitError> {
     // Destructure config
     let Config {
         fcm,
@@ -71,8 +73,13 @@ pub async fn serve(
     // Convert missing hms config to empty HashMap
     let hms = hms.unwrap_or_default();
 
-    // Create FCM HTTP client
-    let fcm_client = http_client::make_client(90)?;
+    let token_obtainer = HttpOauthTokenObtainer::new(&fcm.service_account_key)
+        .await
+        .map_err(InitError::Fcm)?;
+
+    let fcm_state = FcmState::new(&fcm, None, token_obtainer)
+        .await
+        .map_err(InitError::Fcm)?;
 
     // Create APNs clients
     let apns_client_prod = apns::create_client(
@@ -85,7 +92,7 @@ pub async fn serve(
         apns::create_client(Endpoint::Sandbox, apns_api_key, apns.team_id, apns.key_id)?;
 
     // Create a shared HMS HTTP client
-    let hms_client = http_client::make_client(90)?;
+    let hms_client = http_client::make_client(90).map_err(InitError::Reqwest)?;
 
     // Create a HMS context for every config entry
     let hms_contexts = Arc::new(
@@ -100,7 +107,7 @@ pub async fn serve(
     );
 
     // Create Threema Gateway HTTP client
-    let threema_gateway_client = http_client::make_client(90)?;
+    let threema_gateway_client = http_client::make_client(90).map_err(InitError::Reqwest)?;
 
     // Create InfluxDB client
     let influxdb = influxdb.map(|c| {
@@ -136,8 +143,7 @@ pub async fn serve(
     };
 
     let state = AppState {
-        fcm_client: fcm_client.clone(),
-        fcm_config: FcmEndpointConfig::new_shared(fcm, fcm::FCM_ENDPOINT),
+        fcm_state: Arc::new(fcm_state),
         apns_client_prod: apns_client_prod.clone(),
         apns_client_sbox: apns_client_sbox.clone(),
         hms_contexts: hms_contexts.clone(),
@@ -148,13 +154,13 @@ pub async fn serve(
         influxdb: influxdb.clone(),
     };
 
-    let app = get_router(state);
+    let app = get_router::<HttpOauthTokenObtainer>(state);
 
     let listener = TcpListener::bind(listen_on)
         .await
-        .map_err(|e| PushRelayError::IoError {
+        .map_err(|source| InitError::Io {
             reason: "Failed to bind to address",
-            source: e,
+            source,
         })?;
 
     axum::serve(
@@ -162,13 +168,13 @@ pub async fn serve(
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
     .await
-    .map_err(|e| PushRelayError::IoError {
+    .map_err(|e| InitError::Io {
         reason: "Failed to serve app",
         source: e,
     })
 }
 
-fn get_router(state: AppState) -> Router {
+fn get_router<R: RequestOauthToken + 'static>(state: AppState<R>) -> Router {
     axum::Router::new()
         .route(PUSH_PATH, post(handle_push_request))
         .layer(
@@ -195,8 +201,8 @@ fn get_router(state: AppState) -> Router {
 /// Main push handling entry point.
 ///
 /// Handle a request, return a response.
-async fn handle_push_request(
-    State(state): State<AppState>,
+async fn handle_push_request<R: RequestOauthToken>(
+    State(state): State<AppState<R>>,
     headers: axum::http::HeaderMap,
     body: axum::body::Bytes,
 ) -> Result<Response, ServiceError> {
@@ -331,6 +337,7 @@ async fn handle_push_request(
     };
     let collapse_key: Option<String> =
         find!("collapse_key").map(|key| format!("{}.{}", COLLAPSE_KEY_PREFIX, key));
+
     #[allow(clippy::match_wildcard_for_single_variants)]
     let (bundle_id, endpoint, collapse_id) = match push_token {
         PushToken::Apns(_) => {
@@ -366,31 +373,31 @@ async fn handle_push_request(
     );
     let push_result = match push_token {
         PushToken::Fcm(ref token) => {
-            fcm::send_push(
-                &state.fcm_client,
-                &state.fcm_config,
-                token,
-                version,
-                session_public_key,
-                affiliation,
+            let retry_calc = fcm::get_push_retry_calculator();
+            let payload = ThreemaPayload::new(session_public_key, affiliation, version, true);
+            let http_payload = fcm::HttpV1Payload::new(
+                AndroidTtlSeconds::new(ttl),
+                token.as_ref(),
+                &payload,
                 collapse_key.as_deref(),
-                ttl,
-            )
-            .await
+            );
+            fcm::send_push(state.fcm_state.clone(), retry_calc, http_payload, 0)
+                .await
+                .map(|_| {})
         }
         PushToken::Apns(ref token) => {
             let client = match endpoint.unwrap() {
                 Endpoint::Production => {
                     debug!("Using production endpoint");
-                    state.apns_client_prod
+                    &state.apns_client_prod
                 }
                 Endpoint::Sandbox => {
                     debug!("Using sandbox endpoint");
-                    state.apns_client_sbox
+                    &state.apns_client_sbox
                 }
             };
             apns::send_push(
-                &client,
+                client,
                 token,
                 bundle_id.expect("bundle_id is None"),
                 version,
@@ -419,7 +426,7 @@ async fn handle_push_request(
                 .await
             }
             // No config found for this App ID
-            None => Err(SendPushError::ProcessingClientError(format!(
+            None => Err(SendPushError::RemoteClient(format!(
                 "Unknown HMS App ID: {}",
                 app_id
             ))),
@@ -447,7 +454,7 @@ async fn handle_push_request(
                 .await
             } else {
                 // No config found for Threema Gateway
-                Err(SendPushError::ProcessingClientError(
+                Err(SendPushError::RemoteClient(
                     "Cannot send Threema Gateway Push, not configured".into(),
                 ))
             }
@@ -474,20 +481,22 @@ async fn handle_push_request(
                 .body(Body::empty())
                 .unwrap())
         }
-        Err(e) => {
-            warn!("Error: {}", e);
-            Ok(Response::builder()
-                .status(match e {
-                    SendPushError::SendError(_) => StatusCode::BAD_GATEWAY,
-                    SendPushError::ProcessingClientError(_) => StatusCode::BAD_REQUEST,
-                    SendPushError::ProcessingRemoteError(_) => StatusCode::BAD_GATEWAY,
-                    SendPushError::AuthError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-                    SendPushError::Other(_) => StatusCode::INTERNAL_SERVER_ERROR,
-                })
-                .header(CONTENT_TYPE, "text/plain")
-                .body(Body::from("Push not successful"))
-                .unwrap())
-        }
+        Err(e) => Ok(Response::builder()
+            .status({
+                info!("{e}");
+                match e {
+                    SendPushError::RemoteServer(_) => StatusCode::BAD_GATEWAY,
+                    SendPushError::SendError(_) | SendPushError::RemoteClient(_) => {
+                        StatusCode::BAD_REQUEST
+                    }
+                    SendPushError::Internal(_) | SendPushError::RemoteAuth(_) => {
+                        StatusCode::INTERNAL_SERVER_ERROR
+                    }
+                }
+            })
+            .header(CONTENT_TYPE, "text/plain")
+            .body(Body::from("Push not successful"))
+            .unwrap()),
     }
 }
 
@@ -504,6 +513,10 @@ mod tests {
         matchers::{body_partial_json, method, path},
         Mock, MockServer, ResponseTemplate,
     };
+
+    use crate::{config::FcmConfig, server::tests::fcm::test::get_fcm_test_path};
+
+    use self::fcm::{test::MockAccessTokenObtainer, RequestOauthToken};
 
     use super::*;
 
@@ -523,8 +536,26 @@ mod tests {
         key.private_key_to_pem().unwrap()
     }
 
-    fn get_test_state(fcm_endpoint: Option<String>) -> AppState {
-        let fcm_client = http_client::make_client(10).expect("fcm_client");
+    fn get_test_max_retries() -> u8 {
+        6
+    }
+
+    fn get_test_fcm_config() -> FcmConfig {
+        FcmConfig {
+            service_account_key: b"yolo".into(),
+            project_id: 12345678,
+            max_retries: get_test_max_retries(),
+        }
+    }
+
+    fn get_mock_fcm_response() -> &'static str {
+        "{\"name\":\"mock-response\"}"
+    }
+
+    async fn get_test_state(
+        fcm_config: &FcmConfig,
+        fcm_endpoint: Option<String>,
+    ) -> AppState<MockAccessTokenObtainer> {
         let api_key = get_apns_test_key();
         let apns_client_prod = apns::create_client(
             Endpoint::Production,
@@ -537,9 +568,18 @@ mod tests {
             apns::create_client(Endpoint::Sandbox, api_key.as_slice(), "team_id", "key_id")
                 .unwrap();
         let threema_gateway_client = http_client::make_client(10).expect("threema_gateway_client");
+
+        let access_tokan_obtainer =
+            fcm::test::MockAccessTokenObtainer::new(&fcm_config.service_account_key)
+                .await
+                .expect("MockAccessTokenObtainer");
+
+        let fcm_state = FcmState::new(fcm_config, fcm_endpoint, access_tokan_obtainer)
+            .await
+            .unwrap();
+
         AppState {
-            fcm_client,
-            fcm_config: FcmEndpointConfig::stub_with(fcm_endpoint),
+            fcm_state: Arc::new(fcm_state),
             apns_client_prod,
             apns_client_sbox,
             hms_contexts: Arc::new(HashMap::new()),
@@ -551,18 +591,17 @@ mod tests {
         }
     }
 
-    fn get_test_app_with(fcm_endpoint: String) -> Router {
-        get_router(get_test_state(Some(fcm_endpoint)))
-    }
-
-    fn get_test_app() -> Router {
-        get_router(get_test_state(None))
+    async fn get_test_app(fcm_endpoint: Option<String>) -> (Router, FcmConfig) {
+        let fcm_config = get_test_fcm_config();
+        let state = get_test_state(&fcm_config, fcm_endpoint).await;
+        let router = get_router(state);
+        (router, fcm_config)
     }
 
     /// Handle invalid paths
     #[tokio::test]
     async fn test_invalid_path() {
-        let app = get_test_app();
+        let (app, _) = get_test_app(None).await;
 
         let req = Request::builder().uri("/").body(Body::empty()).unwrap();
 
@@ -574,7 +613,7 @@ mod tests {
     /// Handle invalid methods
     #[tokio::test]
     async fn test_invalid_method() {
-        let app = get_test_app();
+        let (app, _) = get_test_app(None).await;
 
         let req = Request::builder()
             .method("GET")
@@ -590,7 +629,7 @@ mod tests {
     /// Handle invalid request content type
     #[tokio::test]
     async fn test_invalid_contenttype() {
-        let app = get_test_app();
+        let (app, _) = get_test_app(None).await;
 
         let req = Request::post(PUSH_PATH)
             .header(CONTENT_TYPE, "text/plain")
@@ -607,7 +646,7 @@ mod tests {
     /// Handle missing request content type
     #[tokio::test]
     async fn test_missing_contenttype() {
-        let app = get_test_app();
+        let (app, _) = get_test_app(None).await;
 
         let req = Request::post(PUSH_PATH).body(Body::empty()).unwrap();
         let resp = app.oneshot(req).await.unwrap();
@@ -620,7 +659,7 @@ mod tests {
     /// A request without parameters should result in a HTTP 400 response.
     #[tokio::test]
     async fn test_no_params() {
-        let app = get_test_app();
+        let (app, _) = get_test_app(None).await;
 
         let req = Request::post(PUSH_PATH)
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
@@ -636,7 +675,7 @@ mod tests {
     /// A request with missing parameters should result in a HTTP 400 response.
     #[tokio::test]
     async fn test_missing_params() {
-        let app = get_test_app();
+        let (app, _) = get_test_app(None).await;
 
         let req = Request::post(PUSH_PATH)
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
@@ -652,7 +691,7 @@ mod tests {
     /// A request with missing parameters should result in a HTTP 400 response.
     #[tokio::test]
     async fn test_missing_params_apns() {
-        let app = get_test_app();
+        let (app, _) = get_test_app(None).await;
 
         let req = Request::post(PUSH_PATH)
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
@@ -668,7 +707,7 @@ mod tests {
     /// A request with bad parameters should result in a HTTP 400 response.
     #[tokio::test]
     async fn test_bad_endpoint() {
-        let app = get_test_app();
+        let (app, _) = get_test_app(None).await;
 
         let req = Request::post(PUSH_PATH)
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
@@ -687,7 +726,7 @@ mod tests {
     /// A request with missing parameters should result in a HTTP 400 response.
     #[tokio::test]
     async fn test_bad_token_type() {
-        let app = get_test_app();
+        let (app, _) = get_test_app(None).await;
 
         let req = Request::post(PUSH_PATH)
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
@@ -703,7 +742,7 @@ mod tests {
     /// A request with invalid TTL parameter should result in a HTTP 400 response.
     #[tokio::test]
     async fn test_invalid_ttl() {
-        let app = get_test_app();
+        let (app, _) = get_test_app(None).await;
 
         let req = Request::post(PUSH_PATH)
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
@@ -724,43 +763,41 @@ mod tests {
     async fn test_fcm_ok() {
         let to = "aassddff";
         let session = "deadbeef";
+        let ttl = 120;
+        let version = 3;
+        let collapse_key = "another_collapse_key";
 
         let mock_server = MockServer::start().await;
 
         let expected_body = serde_json::json!({
-            "to": to,
-            "priority": "high",
-            "time_to_live": 90,
-            "data": {
-                "wcs": session,
-                "wca": null,
-                "wcv": 1
+            "message": {
+                "token": to,
+                "data": {
+                    "wcs": session,
+                    "wcv": version.to_string()
+                },
+                "android": {
+                    "collapse_key": format!("relay.{collapse_key}"),
+                    "priority": "HIGH",
+                    "ttl": format!("{}s", ttl)
+                }
             }
         });
 
+        let (app, fcm_config) = get_test_app(Some(mock_server.uri())).await;
+
         Mock::given(method("POST"))
-            .and(path(fcm::FCM_PATH))
+            .and(path(get_fcm_test_path(&fcm_config)))
             .and(body_partial_json(expected_body))
-            .respond_with(ResponseTemplate::new(200).set_body_string(
-                r#"{
-                "multicast_id": 1,
-                "success": 1,
-                "failure": 0,
-                "canonical_ids": 0,
-                "results": null
-            }"#,
-            ))
+            .respond_with(ResponseTemplate::new(200).set_body_string(get_mock_fcm_response()))
             .expect(1)
             .mount(&mock_server)
             .await;
 
-        let app = get_test_app_with(mock_server.uri());
-
         let req = Request::post(PUSH_PATH)
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
             .body(format!(
-                "type=fcm&token={}&session={}&version=1",
-                to, session
+                "type=fcm&token={to}&session={session}&version={version}&ttl={ttl}&collapse_key={collapse_key}",
             ))
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
@@ -773,26 +810,81 @@ mod tests {
         );
     }
 
-    async fn test_fcm_process_error(msg: &str, status_code: StatusCode) {
+    #[tokio::test]
+    #[allow(clippy::useless_format)]
+    async fn test_fcm_invalid_response() {
+        let to = "aassddff";
+        let session = "deadbeef";
+        let version = 1;
+        let collapse_key = "some_collapse_key";
+        let affiliation_id = "some_affiliation_id";
+
         let mock_server = MockServer::start().await;
 
+        let expected_body = serde_json::json!({
+            "message": {
+                "token": to,
+                "data": {
+                    "wcs": session,
+                    "wcv": version.to_string(),
+                    "wca": affiliation_id
+                },
+                "android": {
+                    "collapse_key": format!("relay.{collapse_key}"),
+                    "priority": "HIGH",
+                    "ttl": "90s"
+                }
+            }
+        });
+
+        let (app, fcm_config) = get_test_app(Some(mock_server.uri())).await;
+
         Mock::given(method("POST"))
-            .and(path(fcm::FCM_PATH))
-            .respond_with(ResponseTemplate::new(200).set_body_string(format!(
-                r#"{{
-                    "multicast_id": 1,
-                    "success": 0,
-                    "failure": 1,
-                    "canonical_ids": 0,
-                    "results": [{{"error": "{}"}}]
-                }}"#,
-                msg,
-            )))
+            .and(path(get_fcm_test_path(&fcm_config)))
+            .and(body_partial_json(expected_body))
+            .respond_with(ResponseTemplate::new(200).set_body_string("invalid body of response"))
             .expect(1)
             .mount(&mock_server)
             .await;
 
-        let app = get_test_app_with(mock_server.uri());
+        let req = Request::post(PUSH_PATH)
+            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .body(format!(
+                "type=fcm&token={to}&session={session}&version={version}&collapse_key={collapse_key}&affiliation={affiliation_id}",
+            ))
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+
+        // Validate response
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap().to_str().unwrap(),
+            "text/plain",
+        );
+    }
+
+    async fn test_fcm_process_error(
+        msg: &str,
+        status_code: StatusCode,
+        expected_http_count: Option<u64>,
+        expected_status_code: StatusCode,
+    ) {
+        let mock_server = MockServer::start().await;
+
+        let (app, fcm_config) = get_test_app(Some(mock_server.uri())).await;
+
+        let error_body = fcm::test::get_fcm_error(
+            status_code,
+            &format!("Description of the error {}", msg),
+            msg,
+        );
+
+        Mock::given(method("POST"))
+            .and(path(get_fcm_test_path(&fcm_config)))
+            .respond_with(ResponseTemplate::new(status_code.as_u16()).set_body_json(error_body))
+            .expect(expected_http_count.unwrap_or(1))
+            .mount(&mock_server)
+            .await;
 
         let req = Request::post(PUSH_PATH)
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
@@ -800,7 +892,7 @@ mod tests {
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
 
-        assert_eq!(resp.status(), status_code);
+        assert_eq!(resp.status(), expected_status_code);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap().to_str().unwrap(),
             "text/plain",
@@ -810,22 +902,68 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_fcm_not_registered() {
-        test_fcm_process_error("NotRegistered", StatusCode::BAD_REQUEST).await;
+    async fn test_fcm_invalid() {
+        test_fcm_process_error(
+            "INVALID_ARGUMENT",
+            StatusCode::BAD_REQUEST,
+            None,
+            StatusCode::BAD_REQUEST,
+        )
+        .await;
     }
 
     #[tokio::test]
-    async fn test_fcm_missing_registration() {
-        test_fcm_process_error("MissingRegistration", StatusCode::BAD_REQUEST).await;
+    async fn test_fcm_unregistered() {
+        test_fcm_process_error(
+            "UNREGISTERED",
+            StatusCode::NOT_FOUND,
+            None,
+            StatusCode::BAD_REQUEST,
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_fcm_sender_id_mismatch() {
+        test_fcm_process_error(
+            "SENDER_ID_MISMATCH",
+            StatusCode::FORBIDDEN,
+            None,
+            StatusCode::BAD_GATEWAY,
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_fcm_unavailable() {
+        test_fcm_process_error(
+            "UNAVAILABLE",
+            StatusCode::SERVICE_UNAVAILABLE,
+            Some((get_test_max_retries() + 1).into()),
+            StatusCode::BAD_GATEWAY,
+        )
+        .await;
     }
 
     #[tokio::test]
     async fn test_fcm_internal_server_error() {
-        test_fcm_process_error("InternalServerError", StatusCode::BAD_GATEWAY).await;
+        test_fcm_process_error(
+            "INTERNAL",
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Some((get_test_max_retries() + 1).into()),
+            StatusCode::BAD_GATEWAY,
+        )
+        .await;
     }
 
     #[tokio::test]
     async fn test_fcm_unknown_error() {
-        test_fcm_process_error("YourBicycleWasStolen", StatusCode::INTERNAL_SERVER_ERROR).await;
+        test_fcm_process_error(
+            "YourBicycleWasStolen",
+            StatusCode::IM_A_TEAPOT,
+            None,
+            StatusCode::BAD_GATEWAY,
+        )
+        .await;
     }
 }

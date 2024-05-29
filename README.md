@@ -21,6 +21,8 @@ Request keys:
 
 - `type`: `apns`, `fcm`, `hms` or `threema-gateway`
 - `token`: The device push token (not provided when using Threema Gateway)
+  - for FCM: The token itself as received from the OS
+  - for iOS: The hex encoded token (without bundle id or encryption key appended)
 - `session`: SHA256 hash of public permanent key of the initiator
 - `version`: Threema Web protocol version
 - `affiliation` (optional): An identifier for affiliating consecutive pushes
@@ -75,7 +77,9 @@ The FCM, HMS and Threema Gateway messages contain the payload data as specified 
 You need the Rust compiler. First, create a `config.toml` file that looks like this:
 
     [fcm]
-    api_key = "your-api-key"
+    service_account_key_base64 = "aHR0cHM6Ly93d3cueW91dHViZS5jb20vd2F0Y2g/dj1kUXc0dzlXZ1hjUQo="
+    project_id = 12345654321
+    max_retries = 6
 
     [apns]
     keyfile = "your-keyfile.p8"

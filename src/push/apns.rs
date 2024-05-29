@@ -21,7 +21,7 @@ use a2::{
 };
 
 use crate::{
-    errors::{PushRelayError, SendPushError},
+    errors::{InitError, SendPushError},
     push::{ApnsToken, ThreemaPayload},
 };
 
@@ -33,12 +33,12 @@ pub fn create_client<S>(
     api_key: impl Read,
     team_id: S,
     key_id: S,
-) -> Result<Client, PushRelayError>
+) -> Result<Client, InitError>
 where
     S: Into<String>,
 {
     let config = ClientConfig::new(endpoint);
-    Client::token(api_key, key_id, team_id, config).map_err(Into::into)
+    Client::token(api_key, key_id, team_id, config).map_err(InitError::Apns)
 }
 
 /// Send an APNs push notification.
@@ -109,9 +109,9 @@ pub async fn send_push(
         }
     };
 
-    let data = ThreemaPayload::new(session, affiliation, version);
+    let data = ThreemaPayload::new(session, affiliation, version, false);
     payload.add_custom_data(PAYLOAD_KEY, &data).map_err(|e| {
-        SendPushError::Other(format!("Could not add custom data to APNs payload: {}", e))
+        SendPushError::Internal(format!("Could not add custom data to APNs payload: {}", e))
     })?;
     trace!("Sending payload: {:#?}", payload);
 
@@ -134,7 +134,7 @@ pub async fn send_push(
                         ErrorReason::BadTopic |
                         ErrorReason::DeviceTokenNotForTopic |
                         ErrorReason::TopicDisallowed => {
-                            return Err(SendPushError::ProcessingClientError(
+                            return Err(SendPushError::RemoteClient(
                                 format!("Push was unsuccessful: {}", e)));
                         },
 
@@ -170,7 +170,7 @@ pub async fn send_push(
             }
 
             // Treat all other errors as server errors
-            Err(SendPushError::ProcessingRemoteError(format!(
+            Err(SendPushError::RemoteServer(format!(
                 "Push was unsuccessful: {}",
                 e
             )))
