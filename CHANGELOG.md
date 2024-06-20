@@ -13,6 +13,8 @@ Possible log types:
 
 ### Unreleased
 
+- [changed] Update dependencies
+
 ### [v5.0.0][v5.0.0] (2024-05-29)
 
 - [changed] Migrate from legacy FCM HTTP API to HTTP v1
