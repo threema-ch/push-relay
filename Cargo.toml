@@ -11,7 +11,7 @@ edition = "2021"
 a2 = { version = "0.10", features = ["tracing"] }
 aead = "0.5"
 anyhow = "1.0.81"
-axum = { version = "0.7.5", features = ["http1", "http2", "tokio"], default-features = false }
+axum = { version = "0.8.1", features = ["http1", "http2", "tokio"], default-features = false }
 base64 = "0.22.0"
 chrono = "0.4"
 clap = { version = "4.4.7", features = ["std", "derive", "suggestions", "color", "help"], default-features = false }
