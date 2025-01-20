@@ -11,10 +11,7 @@ use reqwest::{
 };
 use serde::{Deserialize, Serialize as DeriveSerialize, Serialize, Serializer};
 
-use yup_oauth2::{
-    authenticator::Authenticator, hyper::client::HttpConnector, hyper_rustls::HttpsConnector,
-    AccessToken, ServiceAccountAuthenticator,
-};
+use yup_oauth2::{authenticator::DefaultAuthenticator, AccessToken, ServiceAccountAuthenticator};
 
 use crate::{
     config::{self, FcmApplicationSecret},
@@ -24,8 +21,6 @@ use crate::{
 pub const FCM_ENDPOINT: &str = "https://fcm.googleapis.com";
 const FCM_TIMEOUT_SECS: u64 = 10;
 const DEFAULT_RETRY_AFTER_MILLIS: u64 = 60 * 1000;
-
-type OauthAuthenticator = Authenticator<HttpsConnector<HttpConnector>>;
 
 pub fn get_push_retry_calculator() -> &'static impl CalculatePushSleep {
     #[cfg(test)]
@@ -173,7 +168,7 @@ pub trait RequestOauthToken: Sized + Send + Sync + Clone {
 
 #[derive(Clone)]
 pub struct HttpOauthTokenObtainer {
-    oauth_authenticator: OauthAuthenticator,
+    oauth_authenticator: DefaultAuthenticator,
 }
 
 struct FcmAccessToken {
@@ -200,14 +195,13 @@ impl RequestOauthToken for HttpOauthTokenObtainer {
         let service_account_key = yup_oauth2::parse_service_account_key(application_secret)
             .map_err(|e| SendPushError::Internal(format!("Could not read fcm json secret: {e}")))
             .context("Failed to read application secret")?;
-        let oauth_authenticator: OauthAuthenticator =
-            ServiceAccountAuthenticator::builder(service_account_key)
-                .build()
-                .await
-                .map_err(|e| {
-                    SendPushError::Internal(format!("Could not initialize OAuth 2.0 client: {e}"))
-                })
-                .context("Could not build oauth authenticator")?;
+        let oauth_authenticator = ServiceAccountAuthenticator::builder(service_account_key)
+            .build()
+            .await
+            .map_err(|e| {
+                SendPushError::Internal(format!("Could not initialize OAuth 2.0 client: {e}"))
+            })
+            .context("Could not build oauth authenticator")?;
         Ok(Self {
             oauth_authenticator,
         })
