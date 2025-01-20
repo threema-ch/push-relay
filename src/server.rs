@@ -508,7 +508,7 @@ mod tests {
         ec::{EcGroup, EcKey},
         nid::Nid,
     };
-    use tower::ServiceExt;
+    use tower::util::ServiceExt;
     use wiremock::{
         matchers::{body_partial_json, method, path},
         Mock, MockServer, ResponseTemplate,
