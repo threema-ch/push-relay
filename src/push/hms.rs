@@ -273,7 +273,7 @@ impl HmsContext {
         // Send request
         let response = self
             .client
-            .post(&config.login_url())
+            .post(config.login_url())
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
             .header(CONTENT_LENGTH, &*body.len().to_string())
             .body(body)
@@ -417,7 +417,7 @@ pub async fn send_push(
     // Send request
     let response = context
         .client
-        .post(&config.hms_push_url(&context.config.client_id))
+        .post(config.hms_push_url(&context.config.client_id))
         .header(CONTENT_TYPE, "application/json; charset=UTF-8")
         .header(CONTENT_LENGTH, &*payload_string.len().to_string())
         .header(

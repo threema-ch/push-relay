@@ -83,14 +83,6 @@ struct ErrorViolations {
     field: Option<String>,
 }
 
-/// FCM push result, sent inside the push response.
-#[derive(Debug, Deserialize)]
-pub struct MessageResult {
-    pub message_id: Option<String>,
-    pub registration_id: Option<String>,
-    pub error: Option<String>,
-}
-
 #[derive(Debug, Clone)]
 pub struct FcmEndpointConfig {
     /// Number of retries that will be made if a request fails in a recoverable way
@@ -352,10 +344,10 @@ fn can_push_be_retried(code: StatusCode) -> bool {
 
 /// # Note
 /// Don't call this directly, call [`send_push`] instead!
-async fn _send_push<'a>(
+async fn _send_push(
     state: Arc<FcmState<impl RequestOauthToken>>,
     retry_calculator: &'static impl CalculatePushSleep,
-    http_payload: HttpV1Payload<'a, impl Serialize + Send + Sync>,
+    http_payload: HttpV1Payload<'_, impl Serialize + Send + Sync>,
     try_counter: u8,
 ) -> Result<u16, SendPushError> {
     if try_counter != 0 {
