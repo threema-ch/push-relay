@@ -13,6 +13,11 @@ Possible log types:
 
 ### Unreleased
 
+### [5.0.3][v5.0.3] (2025-01-27)
+
+- [changed] Update dependencies
+- [changed] Bump rust toolchain to 1.84
+
 ### [5.0.2][v5.0.2] (2024-08-14)
 
 - [changed] Update dependencies
@@ -145,3 +150,4 @@ Note that the FCM config format has changed! See README for details.
 [v5.0.0]: https://github.com/threema-ch/push-relay/compare/v4.3.0...v5.0.0
 [v5.0.1]: https://github.com/threema-ch/push-relay/compare/v5.0.0...v5.0.1
 [v5.0.2]: https://github.com/threema-ch/push-relay/compare/v5.0.1...v5.0.2
+[v5.0.3]: https://github.com/threema-ch/push-relay/compare/v5.0.2...v5.0.3
