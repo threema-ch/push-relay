@@ -83,7 +83,6 @@ Note that the FCM config format has changed! See README for details.
 
 [rustsec-2019-033]: https://rustsec.org/advisories/RUSTSEC-2019-0033.html
 
-
 ### [v3.3.0][v3.3.0] (2019-08-05)
 
 - [security] Updated dependencies, including a [security update in a transitive
@@ -92,7 +91,6 @@ Note that the FCM config format has changed! See README for details.
 
 [memoffset-9]: https://github.com/Gilnaa/memoffset/issues/9
 
-
 ### [v3.2.1][v3.2.1] (2019-07-08)
 
 - [security] Updated dependencies, including a [security update in a transitive
@@ -100,20 +98,17 @@ Note that the FCM config format has changed! See README for details.
 
 [smallvec-148]: https://github.com/servo/rust-smallvec/issues/148
 
-
 ### [v3.2.0][v3.2.0] (2019-05-23)
 
 - [added] APNS: Apply `collapse_key` and `ttl` if specified (#24)
 - [fixed] APNs: Use timestamp based on TTL instead of the TTL itself (#25)
 - [changed] Refined error handling (#26)
 
-
 ### [v3.1.0][v3.1.0] (2019-04-25)
 
 - [added] Allow clients to override the FCM TTL (#19)
 - [added] Allow clients to override the FCM collapse key (#20)
 - [changed] Improve handling of FCM push errors (#18)
-
 
 ### [v3.0.0][v3.0.0] (2019-01-24)
 
@@ -122,7 +117,6 @@ Note that the FCM config format has changed! See README for details.
 - [changed] Rename `type=gcm` request key to `type=fcm`
   (the `gcm` version will still work but is deprecated)
 
-
 ### [v2.2.0][v2.2.0] (2018-12-17)
 
 - [changed] Switch to Rust 2018 edition
@@ -130,7 +124,6 @@ Note that the FCM config format has changed! See README for details.
 - [changed] Updated dependencies
 - [changed] Increase log level for some logs
 - [changed] Apply clippy lint feedback
-
 
 [v2.2.0]: https://github.com/threema-ch/push-relay/compare/v2.1.1...v2.2.0
 [v3.0.0]: https://github.com/threema-ch/push-relay/compare/v2.2.0...v3.0.0
