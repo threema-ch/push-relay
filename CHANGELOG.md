@@ -13,6 +13,8 @@ Possible log types:
 
 ### Unreleased
 
+- [security] Update dependencies and fix vulnerabilities
+
 ### [5.0.3][v5.0.3] (2025-01-27)
 
 - [changed] Update dependencies
