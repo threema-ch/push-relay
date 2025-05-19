@@ -44,6 +44,7 @@ jobs:
       with:
         toolchain: nightly
         components: rustfmt
+    - run: rm rust-toolchain.toml
     - run: cargo fmt --all --check
 
   audit:
