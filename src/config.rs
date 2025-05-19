@@ -45,7 +45,7 @@ impl<S: Into<Vec<u8>>> From<S> for FcmApplicationSecret {
 pub struct FcmConfig {
     #[serde(rename = "service_account_key_base64")]
     pub service_account_key: FcmApplicationSecret,
-    pub project_id: u64,
+    pub project_id: String,
     pub max_retries: u8,
 }
 
