@@ -78,7 +78,7 @@ You need the Rust compiler. First, create a `config.toml` file that looks like t
 
     [fcm]
     service_account_key_base64 = "aHR0cHM6Ly93d3cueW91dHViZS5jb20vd2F0Y2g/dj1kUXc0dzlXZ1hjUQo="
-    project_id = 12345654321
+    project_id = "12345654321"
     max_retries = 6
 
     [apns]
