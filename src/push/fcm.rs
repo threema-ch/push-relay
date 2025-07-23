@@ -362,7 +362,7 @@ async fn _send_push(
         state
             .client
             .post(&state.config.endpoint)
-            .header(AUTHORIZATION, format!("Bearer {}", access_token_str))
+            .header(AUTHORIZATION, format!("Bearer {access_token_str}"))
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, payload_string.len().to_string())
             .body(payload_string)
