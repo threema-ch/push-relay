@@ -16,6 +16,8 @@ Possible log types:
 - [changed] Bump rust toolchain to 1.88.0
 - [changed] Change type of `project_id` to String
 - [changed] Update dependencies
+- [changed] Add timeout for FCM requests. Has to be added to config if a different value than the default should be
+  taken.
 
 ### [5.0.4][v5.0.4] (2025-05-16)
 

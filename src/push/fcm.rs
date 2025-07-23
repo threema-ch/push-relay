@@ -160,7 +160,10 @@ pub trait OauthToken: Send {
 }
 
 pub trait RequestOauthToken: Sized + Send + Sync + Clone {
-    async fn new(application_secret: &FcmApplicationSecret) -> anyhow::Result<Self>;
+    async fn new(
+        application_secret: &FcmApplicationSecret,
+        timeout: Duration,
+    ) -> anyhow::Result<Self>;
     fn request_token(
         &self,
     ) -> impl Future<Output = Result<impl OauthToken, SendPushError>> + std::marker::Send;
@@ -191,11 +194,15 @@ impl RequestOauthToken for HttpOauthTokenObtainer {
         Ok(FcmAccessToken { access_token })
     }
 
-    async fn new(application_secret: &FcmApplicationSecret) -> anyhow::Result<Self> {
+    async fn new(
+        application_secret: &FcmApplicationSecret,
+        timeout: Duration,
+    ) -> anyhow::Result<Self> {
         let service_account_key = yup_oauth2::parse_service_account_key(application_secret)
             .map_err(|e| SendPushError::Internal(format!("Could not read fcm json secret: {e}")))
             .context("Failed to read application secret")?;
         let oauth_authenticator = ServiceAccountAuthenticator::builder(service_account_key)
+            .with_timeout(timeout)
             .build()
             .await
             .map_err(|e| {
@@ -464,7 +471,7 @@ pub mod test {
     }
 
     impl RequestOauthToken for MockAccessTokenObtainer {
-        async fn new(_: &FcmApplicationSecret) -> anyhow::Result<Self> {
+        async fn new(_: &FcmApplicationSecret, _: Duration) -> anyhow::Result<Self> {
             Ok(MockAccessTokenObtainer)
         }
 
