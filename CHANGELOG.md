@@ -15,6 +15,7 @@ Possible log types:
 
 - [changed] Bump rust toolchain to 1.88.0
 - [changed] Change type of `project_id` to String
+- [changed] Update dependencies
 
 ### [5.0.4][v5.0.4] (2025-05-16)
 
