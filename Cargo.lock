@@ -2674,14 +2674,12 @@ dependencies = [
 
 [[package]]
 name = "yup-oauth2"
-version = "11.0.0"
+version = "12.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ed5f19242090128c5809f6535cc7b8d4e2c32433f6c6005800bbc20a644a7f0"
+checksum = "4964039ac787bbd306fba65f6a8963b7974ae99515087e506a862674abae6a30"
 dependencies = [
- "anyhow",
  "async-trait",
  "base64 0.22.1",
- "futures",
  "http",
  "http-body-util",
  "hyper",
@@ -2694,6 +2692,7 @@ dependencies = [
  "seahash",
  "serde",
  "serde_json",
+ "thiserror 2.0.12",
  "time",
  "tokio",
  "url",
