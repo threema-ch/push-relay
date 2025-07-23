@@ -106,7 +106,7 @@ pub async fn send_push(
 
     // Send request
     let response = client
-        .post(format!("{}/send_e2e", base_url))
+        .post(format!("{base_url}/send_e2e"))
         .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
         .header(ACCEPT, "application/json")
         .body(body)
@@ -128,8 +128,7 @@ pub async fn send_push(
             Err(SendPushError::RemoteServer("Message too long".into()))
         }
         status => Err(SendPushError::Internal(format!(
-            "Unknown error: Status {}",
-            status
+            "Unknown error: Status {status}"
         ))),
     }
 }

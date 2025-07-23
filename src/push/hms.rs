@@ -167,7 +167,7 @@ impl fmt::Display for HmsCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         const PREFIX: &str = "HMS push failed";
         match &self {
-            &Self::Other(reason) => write!(f, "{} with unspecified code: {}", PREFIX, reason),
+            &Self::Other(reason) => write!(f, "{PREFIX} with unspecified code: {reason}"),
             _ => write!(f, "{}: {:?}", PREFIX, &self),
         }
     }
@@ -296,8 +296,7 @@ impl HmsContext {
                 Err(_) => warn!("OAuth2 response: HTTP {} (invalid UTF8 body)", status),
             }
             return Err(SendPushError::RemoteAuth(format!(
-                "Could not request HMS credentials: HTTP {}",
-                status
+                "Could not request HMS credentials: HTTP {status}"
             )));
         }
         trace!("OAuth2 response: HTTP {}", status);
@@ -310,8 +309,7 @@ impl HmsContext {
         // Parse JSON
         let data: AuthResponse = json::from_str(json_body).map_err(|e| {
             SendPushError::RemoteAuth(format!(
-                "Could not decode response JSON: `{}` (Reason: {})",
-                json_body, e
+                "Could not decode response JSON: `{json_body}` (Reason: {e})"
             ))
         })?;
 
@@ -400,7 +398,7 @@ pub async fn send_push(
                 } else {
                     None
                 },
-                ttl: format!("{}s", ttl),
+                ttl: format!("{ttl}s"),
             },
             token: &[&push_token.0],
         },
@@ -434,7 +432,7 @@ pub async fn send_push(
 
     // Fetch body
     let body_bytes = response.bytes().await.map_err(|e| {
-        SendPushError::RemoteServer(format!("Could not read HMS auth response body: {}", e))
+        SendPushError::RemoteServer(format!("Could not read HMS auth response body: {e}"))
     })?;
 
     // Decode UTF8 bytes
@@ -449,27 +447,21 @@ pub async fn send_push(
             trace!("HMS push request returned HTTP 200: {}", body);
         }
         StatusCode::BAD_REQUEST => {
-            return Err(SendPushError::RemoteClient(format!(
-                "Bad request: {}",
-                body
-            )));
+            return Err(SendPushError::RemoteClient(format!("Bad request: {body}")));
         }
         StatusCode::INTERNAL_SERVER_ERROR | StatusCode::BAD_GATEWAY => {
             return Err(SendPushError::RemoteServer(format!(
-                "HMS server error: {}",
-                body
+                "HMS server error: {body}"
             )));
         }
         StatusCode::SERVICE_UNAVAILABLE => {
             return Err(SendPushError::RemoteServer(format!(
-                "HMS quota reached: {}",
-                body
+                "HMS quota reached: {body}"
             )));
         }
         _other => {
             return Err(SendPushError::Internal(format!(
-                "Unexpected status code: HTTP {}: {}",
-                status, body
+                "Unexpected status code: HTTP {status}: {body}"
             )));
         }
     }
@@ -477,8 +469,7 @@ pub async fn send_push(
     // Parse JSON
     let data: PushResponse = json::from_str(body).map_err(|e| {
         SendPushError::Internal(format!(
-            "Could not decode response JSON: `{}` (Reason: {})",
-            body, e
+            "Could not decode response JSON: `{body}` (Reason: {e})"
         ))
     })?;
 
@@ -503,13 +494,12 @@ pub async fn send_push(
             // Clear credentials, since token may be invalid
             context.clear_credentials().await;
             Err(SendPushError::RemoteServer(format!(
-                "Authentication error: {:?}",
-                code
+                "Authentication error: {code:?}"
             )))
         }
 
         // Other errors
-        other => Err(SendPushError::Internal(format!("{}", other))),
+        other => Err(SendPushError::Internal(format!("{other}"))),
     }
 }
 
@@ -559,8 +549,7 @@ mod tests {
 
             Mock::given(method("POST"))
                 .and(body_string(format!(
-                    "grant_type=client_credentials&client_id={}&client_secret={}",
-                    CLIENT_ID, CLIENT_SECRET
+                    "grant_type=client_credentials&client_id={CLIENT_ID}&client_secret={CLIENT_SECRET}"
                 )))
                 .respond_with(ResponseTemplate::new(200).set_body_string(
                     r#"{

@@ -336,7 +336,7 @@ async fn handle_push_request<R: RequestOauthToken>(
         None => TTL_DEFAULT,
     };
     let collapse_key: Option<String> =
-        find!("collapse_key").map(|key| format!("{}.{}", COLLAPSE_KEY_PREFIX, key));
+        find!("collapse_key").map(|key| format!("{COLLAPSE_KEY_PREFIX}.{key}"));
 
     #[allow(clippy::match_wildcard_for_single_variants)]
     let (bundle_id, endpoint, collapse_id) = match push_token {
@@ -427,8 +427,7 @@ async fn handle_push_request<R: RequestOauthToken>(
             }
             // No config found for this App ID
             None => Err(SendPushError::RemoteClient(format!(
-                "Unknown HMS App ID: {}",
-                app_id
+                "Unknown HMS App ID: {app_id}"
             ))),
         },
         PushToken::ThreemaGateway {
@@ -873,11 +872,8 @@ mod tests {
 
         let (app, fcm_config) = get_test_app(Some(mock_server.uri())).await;
 
-        let error_body = fcm::test::get_fcm_error(
-            status_code,
-            &format!("Description of the error {}", msg),
-            msg,
-        );
+        let error_body =
+            fcm::test::get_fcm_error(status_code, &format!("Description of the error {msg}"), msg);
 
         Mock::given(method("POST"))
             .and(path(get_fcm_test_path(&fcm_config)))

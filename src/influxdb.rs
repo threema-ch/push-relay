@@ -51,7 +51,7 @@ impl Influxdb {
     }
 
     fn get_authorization_header(user: &str, pass: &str) -> String {
-        let bytes = format!("{}:{}", user, pass).into_bytes();
+        let bytes = format!("{user}:{pass}").into_bytes();
         format!("Basic {}", BASE64.encode(bytes))
     }
 
@@ -71,7 +71,7 @@ impl Influxdb {
             .body(body)
             .send()
             .await
-            .map_err(|e| InfluxdbError::Http(format!("Request failed: {}", e)))?;
+            .map_err(|e| InfluxdbError::Http(format!("Request failed: {e}")))?;
 
         // Handle response status codes
         match response.status() {
@@ -86,8 +86,7 @@ impl Influxdb {
                 Err(InfluxdbError::Other(body))
             }
             status => Err(InfluxdbError::Http(format!(
-                "Unexpected status code: {}",
-                status
+                "Unexpected status code: {status}"
             ))),
         }
     }
@@ -103,15 +102,14 @@ impl Influxdb {
             .body(body)
             .send()
             .await
-            .map_err(|e| InfluxdbError::Http(format!("Request failed: {}", e)))?;
+            .map_err(|e| InfluxdbError::Http(format!("Request failed: {e}")))?;
 
         // Handle response status codes
         match response.status() {
             StatusCode::NO_CONTENT => Ok(()),
             StatusCode::NOT_FOUND => Err(InfluxdbError::DatabaseNotFound),
             status => Err(InfluxdbError::Http(format!(
-                "Unexpected status code: {}",
-                status
+                "Unexpected status code: {status}"
             ))),
         }
     }

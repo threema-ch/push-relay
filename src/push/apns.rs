@@ -111,7 +111,7 @@ pub async fn send_push(
 
     let data = ThreemaPayload::new(session, affiliation, version, false);
     payload.add_custom_data(PAYLOAD_KEY, &data).map_err(|e| {
-        SendPushError::Internal(format!("Could not add custom data to APNs payload: {}", e))
+        SendPushError::Internal(format!("Could not add custom data to APNs payload: {e}"))
     })?;
     trace!("Sending payload: {:#?}", payload);
 
@@ -135,7 +135,7 @@ pub async fn send_push(
                         ErrorReason::DeviceTokenNotForTopic |
                         ErrorReason::TopicDisallowed => {
                             return Err(SendPushError::RemoteClient(
-                                format!("Push was unsuccessful: {}", e)));
+                                format!("Push was unsuccessful: {e}")));
                         },
 
                         // Below errors should never happen
@@ -171,8 +171,7 @@ pub async fn send_push(
 
             // Treat all other errors as server errors
             Err(SendPushError::RemoteServer(format!(
-                "Push was unsuccessful: {}",
-                e
+                "Push was unsuccessful: {e}"
             )))
         }
     }
