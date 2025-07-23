@@ -144,14 +144,15 @@ To run lints:
 
 Licensed under either of
 
- * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-   http://www.apache.org/licenses/LICENSE-2.0)
- * MIT license ([LICENSE-MIT](LICENSE-MIT) or
-   http://opensource.org/licenses/MIT)
+- Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
+  http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or
+  http://opensource.org/licenses/MIT)
 
 at your option.
 
 <!-- Badges -->
+
 [ci]: https://github.com/threema-ch/push-relay/actions?query=workflow%3ACI
 [ci-badge]: https://img.shields.io/github/actions/workflow/status/threema-ch/push-relay/ci.yml?branch=master
 [license]: https://github.com/threema-ch/push-relay#license
