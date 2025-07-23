@@ -327,7 +327,7 @@ impl CalculatePushSleep for PushSleepCalculator {
         // will be added or subtracted so that the retries are not scheduled at the same time.
         let sleep_millis = 2u64.pow(try_counter.into()) * 1000;
         let deviation = sleep_millis / 100 * 8;
-        rand::thread_rng().gen_range((sleep_millis - deviation)..(sleep_millis + deviation))
+        rand::rng().random_range((sleep_millis - deviation)..(sleep_millis + deviation))
     }
 }
 
