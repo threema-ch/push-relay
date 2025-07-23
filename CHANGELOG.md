@@ -13,7 +13,7 @@ Possible log types:
 
 ### Unreleased
 
-- [changed] Bump rust toolchain to 1.86
+- [changed] Bump rust toolchain to 1.88.0
 - [changed] Change type of `project_id` to String
 
 ### [5.0.4][v5.0.4] (2025-05-16)
