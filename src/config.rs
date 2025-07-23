@@ -1,6 +1,6 @@
 //! Configuration.
 
-use std::{collections::HashMap, fs::File, io::Read, path::Path};
+use std::{collections::HashMap, fs::File, io::Read, ops::Deref, path::Path, time::Duration};
 
 use base64::{engine::general_purpose, Engine};
 use serde::{de::Error as DeserializeError, Deserialize, Deserializer};
@@ -47,6 +47,38 @@ pub struct FcmConfig {
     pub service_account_key: FcmApplicationSecret,
     pub project_id: String,
     pub max_retries: u8,
+    #[serde(rename = "timeout_secs")]
+    pub timeout: FcmTimeout,
+}
+
+#[derive(Debug)]
+pub struct FcmTimeout(Duration);
+
+impl Default for FcmTimeout {
+    fn default() -> Self {
+        Self(Duration::from_secs(60))
+    }
+}
+
+impl Deref for FcmTimeout {
+    type Target = Duration;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for FcmTimeout {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let timeout_secs = match u64::deserialize(deserializer)? {
+            0 => return Err(serde::de::Error::custom("FCM timeout must be > 0")),
+            n => n,
+        };
+        Ok(FcmTimeout(Duration::from_secs(timeout_secs)))
+    }
 }
 
 #[derive(Debug, Deserialize)]

@@ -73,7 +73,7 @@ pub async fn serve(
     // Convert missing hms config to empty HashMap
     let hms = hms.unwrap_or_default();
 
-    let token_obtainer = HttpOauthTokenObtainer::new(&fcm.service_account_key)
+    let token_obtainer = HttpOauthTokenObtainer::new(&fcm.service_account_key, *fcm.timeout)
         .await
         .map_err(InitError::Fcm)?;
 
@@ -513,7 +513,10 @@ mod tests {
         Mock, MockServer, ResponseTemplate,
     };
 
-    use crate::{config::FcmConfig, server::tests::fcm::test::get_fcm_test_path};
+    use crate::{
+        config::{FcmConfig, FcmTimeout},
+        server::tests::fcm::test::get_fcm_test_path,
+    };
 
     use self::fcm::{test::MockAccessTokenObtainer, RequestOauthToken};
 
@@ -544,6 +547,7 @@ mod tests {
             service_account_key: b"yolo".into(),
             project_id: "12345678".to_string(),
             max_retries: get_test_max_retries(),
+            timeout: FcmTimeout::default(),
         }
     }
 
@@ -568,10 +572,12 @@ mod tests {
                 .unwrap();
         let threema_gateway_client = http_client::make_client(10).expect("threema_gateway_client");
 
-        let access_tokan_obtainer =
-            fcm::test::MockAccessTokenObtainer::new(&fcm_config.service_account_key)
-                .await
-                .expect("MockAccessTokenObtainer");
+        let access_tokan_obtainer = fcm::test::MockAccessTokenObtainer::new(
+            &fcm_config.service_account_key,
+            *fcm_config.timeout,
+        )
+        .await
+        .expect("MockAccessTokenObtainer");
 
         let fcm_state = FcmState::new(fcm_config, fcm_endpoint, access_tokan_obtainer)
             .await
