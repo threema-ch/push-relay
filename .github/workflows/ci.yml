@@ -4,7 +4,7 @@ on:
       - master
   pull_request:
   schedule:
-    - cron: '30 3 * * 4'
+    - cron: "30 3 * * 4"
 
 name: CI
 
@@ -12,7 +12,6 @@ env:
   RUST_VERSION: "1.86"
 
 jobs:
-
   test:
     name: run tests
     runs-on: ubuntu-latest
@@ -22,7 +21,7 @@ jobs:
         with:
           toolchain: $RUST_VERSION
       - run: cargo build
-      - run: cargo test --all-features 
+      - run: cargo test --all-features
 
   clippy:
     name: run clippy lints
@@ -39,18 +38,18 @@ jobs:
     name: run rustfmt
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@v1
-      with:
-        toolchain: nightly
-        components: rustfmt
-    - run: rm rust-toolchain.toml
-    - run: cargo fmt --all --check
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: nightly
+          components: rustfmt
+      - run: rm rust-toolchain.toml
+      - run: cargo fmt --all --check
 
   audit:
     name: run cargo audit
     runs-on: ubuntu-latest
     container: dbrgn/cargo-audit:latest
     steps:
-    - uses: actions/checkout@v4
-    - run: cargo audit
+      - uses: actions/checkout@v4
+      - run: cargo audit
