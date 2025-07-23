@@ -86,14 +86,14 @@ pub struct FcmEndpointConfig {
     endpoint: String,
 }
 
-fn get_fcm_uri(project_id: u64, fcm_authority: impl AsRef<str>) -> String {
+fn get_fcm_uri(project_id: &str, fcm_authority: impl AsRef<str>) -> String {
     let base_url = fcm_authority.as_ref();
     format!("{base_url}/v1/projects/{project_id}/messages:send")
 }
 
 impl FcmEndpointConfig {
     fn new(config: &config::FcmConfig, fcm_authority: impl AsRef<str>) -> Self {
-        let endpoint = get_fcm_uri(config.project_id, fcm_authority);
+        let endpoint = get_fcm_uri(&config.project_id, fcm_authority);
         Self {
             max_retries: config.max_retries,
             endpoint,
@@ -450,7 +450,7 @@ pub mod test {
     use super::*;
 
     pub fn get_fcm_test_path(config: &config::FcmConfig) -> String {
-        get_fcm_uri(config.project_id, "")
+        get_fcm_uri(&config.project_id, "")
     }
 
     #[derive(Clone)]

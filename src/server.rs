@@ -543,7 +543,7 @@ mod tests {
     fn get_test_fcm_config() -> FcmConfig {
         FcmConfig {
             service_account_key: b"yolo".into(),
-            project_id: 12345678,
+            project_id: "12345678".to_string(),
             max_retries: get_test_max_retries(),
         }
     }
