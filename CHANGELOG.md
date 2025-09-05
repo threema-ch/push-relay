@@ -13,6 +13,8 @@ Possible log types:
 
 ### Unreleased
 
+- [changed] Bump rust toolchain to 1.89.0
+
 ### [6.0.0][v6.0.0] (2025-07-29)
 
 - [changed] Bump rust toolchain to 1.88.0
