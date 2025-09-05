@@ -18,10 +18,6 @@ pub struct ApnsToken(pub String);
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct HmsToken(pub String);
 
-// A Threema Gateway token.
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct ThreemaGatewayToken(pub String);
-
 /// The possible push token types.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum PushToken {
