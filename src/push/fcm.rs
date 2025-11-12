@@ -51,33 +51,6 @@ pub struct MessageResponse {
     name: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct ErrorResponse {
-    error: FcmError,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct FcmError {
-    code: u16,
-    details: Option<Vec<ErrorDetails>>,
-    message: Option<String>,
-    status: Option<String>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct ErrorDetails {
-    #[serde(rename = "@type")]
-    error_type: Option<String>,
-    #[serde(rename = "fieldViolations")]
-    violations: Option<Vec<ErrorViolations>>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct ErrorViolations {
-    description: Option<String>,
-    field: Option<String>,
-}
-
 #[derive(Debug, Clone)]
 pub struct FcmEndpointConfig {
     /// Number of retries that will be made if a request fails in a recoverable way
@@ -455,6 +428,33 @@ async fn _send_push(
 #[cfg(test)]
 pub mod test {
     use super::*;
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct ErrorResponse {
+        error: FcmError,
+    }
+
+    #[derive(Debug, Deserialize, Serialize)]
+    struct FcmError {
+        code: u16,
+        details: Option<Vec<ErrorDetails>>,
+        message: Option<String>,
+        status: Option<String>,
+    }
+
+    #[derive(Debug, Deserialize, Serialize)]
+    struct ErrorDetails {
+        #[serde(rename = "@type")]
+        error_type: Option<String>,
+        #[serde(rename = "fieldViolations")]
+        violations: Option<Vec<ErrorViolations>>,
+    }
+
+    #[derive(Debug, Deserialize, Serialize)]
+    struct ErrorViolations {
+        description: Option<String>,
+        field: Option<String>,
+    }
 
     pub fn get_fcm_test_path(config: &config::FcmConfig) -> String {
         get_fcm_uri(&config.project_id, "")
