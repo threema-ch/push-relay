@@ -11,6 +11,10 @@ Possible log types:
 - `[fixed]` for any bug fixes.
 - `[security]` to invite users to upgrade in case of vulnerabilities.
 
+### Unreleased
+
+- [changed] Update dependencies
+
 ### [6.0.1][v6.0.1] (2025-09-05)
 
 - [changed] Bump rust toolchain to 1.89.0
