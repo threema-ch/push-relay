@@ -11,7 +11,7 @@ Possible log types:
 - `[fixed]` for any bug fixes.
 - `[security]` to invite users to upgrade in case of vulnerabilities.
 
-### Unreleased
+### [6.1.0][v6.1.0] (2025-11-12)
 
 - [changed] Update dependencies
 - [changed] Bump rust toolchain to 1.91.1
@@ -168,3 +168,4 @@ Note that the FCM config format has changed! See README for details.
 [v5.0.4]: https://github.com/threema-ch/push-relay/compare/v5.0.3...v5.0.4
 [v6.0.0]: https://github.com/threema-ch/push-relay/compare/v5.0.4...v6.0.0
 [v6.0.0]: https://github.com/threema-ch/push-relay/compare/v6.0.0...v6.0.1
+[v6.0.0]: https://github.com/threema-ch/push-relay/compare/v6.0.1...v6.1.0
