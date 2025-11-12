@@ -74,7 +74,9 @@ The FCM, HMS and Threema Gateway messages contain the payload data as specified 
 
 ## Running
 
-You need the Rust compiler. First, create a `config.toml` file that looks like this:
+You need the Rust compiler. First, create an empty `config.toml` file.
+
+To support FCM, you need to add the `fcm` config section that should look like this:
 
     [fcm]
     service_account_key_base64 = "aHR0cHM6Ly93d3cueW91dHViZS5jb20vd2F0Y2g/dj1kUXc0dzlXZ1hjUQo="
@@ -82,6 +84,8 @@ You need the Rust compiler. First, create a `config.toml` file that looks like t
     max_retries = 6
     # Optional, default is 60 s
     timeout_secs = 60
+
+To support APNS, add the `apns` section and a keyfile:
 
     [apns]
     keyfile = "your-keyfile.p8"

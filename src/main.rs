@@ -23,8 +23,9 @@ mod influxdb;
 mod push;
 mod server;
 
-use std::{fs::File, io::Read, net::SocketAddr, path::PathBuf, process};
+use std::{fs::File, io::Read, net::SocketAddr, path::PathBuf};
 
+use anyhow::{anyhow, Context as _};
 use clap::Parser;
 use data_encoding::HEXLOWER_PERMISSIVE;
 use zeroize::{ZeroizeOnDrop, Zeroizing};
@@ -49,23 +50,17 @@ struct Args {
 }
 
 #[tokio::main(flavor = "multi_thread")]
-async fn main() {
-    if let Err(e) = tracing_subscriber::fmt::try_init() {
-        eprintln!("Could not init tracing_subscriber: {e}");
-        process::exit(1);
-    };
+async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt::try_init()
+        .map_err(|e| anyhow!("Could not init tracing_subscriber: {e}"))?;
 
     let args = Args::parse();
 
     // Load config file
-    let config = Config::load(&args.config).unwrap_or_else(|e| {
-        error!("Could not load config file {:?}: {}", args.config, e);
-        process::exit(2);
-    });
+    let config = Config::load(&args.config)
+        .map_err(|e| anyhow!("Could not load config file {:?}: {}", args.config, e))?;
 
     // Determine HMS credentials
-    info!("Found FCM config");
-    info!("Found APNs config");
     match config.hms {
         None => {
             warn!("No HMS credentials found in config, HMS pushes cannot be handled");
@@ -80,49 +75,39 @@ async fn main() {
     }
 
     // Determine Threema Gateway credentials
-    let threema_gateway_private_key = get_gateway_key(&config);
+    let threema_gateway_private_key = get_gateway_key(&config)?;
 
-    // Open and read APNs keyfile
-    let mut apns_keyfile = File::open(&config.apns.keyfile).unwrap_or_else(|e| {
-        error!(
-            "Invalid APNs 'keyfile' path: Could not open '{}': {}",
-            config.apns.keyfile, e
-        );
-        process::exit(3);
-    });
-    let mut apns_api_key = Vec::new();
-    apns_keyfile
-        .read_to_end(&mut apns_api_key)
-        .unwrap_or_else(|e| {
-            error!(
-                "Invalid 'keyfile': Could not read '{}': {}",
-                config.apns.keyfile, e
-            );
-            process::exit(3);
-        });
+    let apns_api_key =
+        if let Some(apns_key_path) = config.apns.as_ref().map(|apns_config| &apns_config.keyfile) {
+            info!("Found APNs config");
+
+            Some(std::fs::read(apns_key_path).context(format!(
+                "Invalid 'keyfile': Could not read '{}'",
+                apns_key_path
+            ))?)
+        } else {
+            None
+        };
 
     info!("Starting Push Relay Server {} on {}", VERSION, &args.listen);
 
-    if let Err(e) = server::serve(
+    server::serve(
         config,
-        &apns_api_key,
+        apns_api_key,
         threema_gateway_private_key,
         args.listen,
     )
     .await
-    {
-        error!("Server error: {}", e);
-        process::exit(3);
-    }
+    .context("Failed to serve app")
 }
 
-fn get_gateway_key(config: &Config) -> Option<ThreemaGatewayPrivateKey> {
+fn get_gateway_key(config: &Config) -> anyhow::Result<Option<ThreemaGatewayPrivateKey>> {
     match config.threema_gateway {
         None => {
             warn!(
                 "No Threema Gateway credentials found in config, Threema pushes cannot be handled"
             );
-            None
+            Ok(None)
         }
         Some(ref threema_gateway_config) => {
             info!(
@@ -133,50 +118,42 @@ fn get_gateway_key(config: &Config) -> Option<ThreemaGatewayPrivateKey> {
             // Open and read private key
             let mut private_key = Zeroizing::new(Vec::new());
             File::open(&threema_gateway_config.private_key_file)
-                .unwrap_or_else(|e| {
-                    error!(
+                .map_err(|e| {
+                    anyhow!(
                         "Invalid Threema Gateway 'private_key_file' path: Could not open '{}': {}",
-                        threema_gateway_config.private_key_file, e
-                    );
-                    process::exit(3);
-                })
+                        threema_gateway_config.private_key_file,
+                        e
+                    )
+                })?
                 .read_to_end(&mut private_key)
-                .unwrap_or_else(|e| {
-                    error!(
+                .map_err(|e| {
+                    anyhow!(
                         "Invalid Threema Gateway 'private_key_file': Could not read '{}': {}",
-                        threema_gateway_config.private_key_file, e
-                    );
-                    process::exit(3);
-                });
+                        threema_gateway_config.private_key_file,
+                        e
+                    )
+                })?;
 
             // Strip `private:` prefix and new-line suffix
-            let private_key = private_key.strip_prefix(b"private:").unwrap_or_else(|| {
-                error!(
+            let private_key = private_key.strip_prefix(b"private:").ok_or_else(|| {
+                anyhow!(
                     "Invalid Threema Gateway 'private_key_file': Private key not prefixed with 'private:'",
-                );
-                process::exit(3);
-            });
+                )
+            })?;
             let private_key = private_key.strip_suffix(b"\n").unwrap_or(private_key);
 
             // Decode private key
-            let private_key = Zeroizing::new(HEXLOWER_PERMISSIVE
-                    .decode(private_key)
-                    .unwrap_or_else(|e| {
-                        error!(
-                            "Invalid Threema Gateway 'private_key_file': Could not hex decode private key: {}",
-                            e
-                        );
-                        process::exit(3);
-                    }));
+            let private_key = Zeroizing::new(HEXLOWER_PERMISSIVE.decode(private_key).context(
+                "Invalid Threema Gateway 'private_key_file': Could not hex decode private key",
+            )?);
             let private_key_length = private_key.len();
-            let private_key = ThreemaGatewayPrivateKey(<[u8; 32]>::try_from(private_key.as_ref()).unwrap_or_else(|_| {
-                error!(
+            let private_key = ThreemaGatewayPrivateKey(<[u8; 32]>::try_from(private_key.as_ref()).map_err(|_| {
+                anyhow!(
                     "Invalid Threema Gateway 'private_key_file': Could not decode private key, invalid length: {}",
                     private_key_length
-                );
-                process::exit(3);
-            }));
-            Some(private_key)
+                )
+            })?);
+            Ok(Some(private_key))
         }
     }
 }

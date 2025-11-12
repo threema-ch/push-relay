@@ -15,6 +15,7 @@ Possible log types:
 
 - [changed] Update dependencies
 - [changed] Bump rust toolchain to 1.91.1
+- [changed] Make APNS and FCM config optional
 
 ### [6.0.1][v6.0.1] (2025-09-05)
 
