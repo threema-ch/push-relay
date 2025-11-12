@@ -1,9 +1,6 @@
 use std::{borrow::Cow, collections::HashMap, convert::Into, net::SocketAddr, sync::Arc};
 
-use a2::{
-    client::{Client as ApnsClient, Endpoint},
-    CollapseId,
-};
+use a2::{CollapseId, Endpoint};
 use axum::{
     body::Body,
     extract::State,
@@ -26,8 +23,8 @@ use crate::{
     http_client,
     influxdb::Influxdb,
     push::{
-        apns, fcm,
-        fcm::{AndroidTtlSeconds, FcmState, HttpOauthTokenObtainer, RequestOauthToken},
+        apns::{self, ApnsState},
+        fcm::{self, AndroidTtlSeconds, FcmState, HttpOauthTokenObtainer, RequestOauthToken},
         hms::{self, HmsContext, HmsEndpointConfig},
         threema_gateway, ApnsToken, FcmToken, HmsToken, PushToken, ThreemaPayload,
     },
@@ -43,9 +40,8 @@ struct AppState<R = HttpOauthTokenObtainer>
 where
     R: fcm::RequestOauthToken,
 {
-    fcm_state: Arc<FcmState<R>>,
-    apns_client_prod: ApnsClient,
-    apns_client_sbox: ApnsClient,
+    fcm_state: Option<Arc<FcmState<R>>>,
+    apns_state: Option<ApnsState>,
     hms_contexts: Arc<HashMap<String, HmsContext>>,
     hms_config: Arc<HmsEndpointConfig>,
     threema_gateway_client: HttpClient,
@@ -57,7 +53,7 @@ where
 /// Start the server and run infinitely.
 pub async fn serve(
     config: Config,
-    apns_api_key: &[u8],
+    apns_api_key: Option<Vec<u8>>,
     threema_gateway_private_key: Option<ThreemaGatewayPrivateKey>,
     listen_on: SocketAddr,
 ) -> Result<(), InitError> {
@@ -73,23 +69,43 @@ pub async fn serve(
     // Convert missing hms config to empty HashMap
     let hms = hms.unwrap_or_default();
 
-    let token_obtainer = HttpOauthTokenObtainer::new(&fcm.service_account_key, *fcm.timeout)
-        .await
-        .map_err(InitError::Fcm)?;
+    let fcm_state = if let Some(fcm_config) = fcm {
+        info!("Found FCM config");
 
-    let fcm_state = FcmState::new(&fcm, None, token_obtainer)
-        .await
-        .map_err(InitError::Fcm)?;
+        let token_obtainer =
+            HttpOauthTokenObtainer::new(&fcm_config.service_account_key, *fcm_config.timeout)
+                .await
+                .map_err(InitError::Fcm)?;
 
-    // Create APNs clients
-    let apns_client_prod = apns::create_client(
-        Endpoint::Production,
-        apns_api_key,
-        apns.team_id.clone(),
-        apns.key_id.clone(),
-    )?;
-    let apns_client_sbox =
-        apns::create_client(Endpoint::Sandbox, apns_api_key, apns.team_id, apns.key_id)?;
+        Some(Arc::new(
+            FcmState::new(&fcm_config, None, token_obtainer)
+                .await
+                .map_err(InitError::Fcm)?,
+        ))
+    } else {
+        None
+    };
+
+    let apns_state = match (apns, apns_api_key) {
+        (Some(apns_config), Some(apns_api_key)) => {
+            // Create APNs clients
+            let prod_client = apns::create_client(
+                Endpoint::Production,
+                &apns_api_key[..],
+                apns_config.team_id.clone(),
+                apns_config.key_id.clone(),
+            )?;
+            let sandbox_client = apns::create_client(
+                Endpoint::Sandbox,
+                &apns_api_key[..],
+                apns_config.team_id,
+                apns_config.key_id,
+            )?;
+
+            Some(ApnsState::new(prod_client, sandbox_client))
+        }
+        _ => None,
+    };
 
     // Create a shared HMS HTTP client
     let hms_client = http_client::make_client(90).map_err(InitError::Reqwest)?;
@@ -143,9 +159,8 @@ pub async fn serve(
     };
 
     let state = AppState {
-        fcm_state: Arc::new(fcm_state),
-        apns_client_prod: apns_client_prod.clone(),
-        apns_client_sbox: apns_client_sbox.clone(),
+        fcm_state,
+        apns_state,
         hms_contexts: hms_contexts.clone(),
         hms_config: HmsEndpointConfig::new_shared(),
         threema_gateway_client: threema_gateway_client.clone(),
@@ -381,32 +396,37 @@ async fn handle_push_request<R: RequestOauthToken>(
                 &payload,
                 collapse_key.as_deref(),
             );
-            fcm::send_push(state.fcm_state.clone(), retry_calc, http_payload, 0)
-                .await
-                .map(|_| {})
+
+            if let Some(fcm_state) = state.fcm_state {
+                fcm::send_push(fcm_state.clone(), retry_calc, http_payload, 0)
+                    .await
+                    .map(|_| {})
+            } else {
+                // No FCM config found
+                Err(SendPushError::RemoteClient(
+                    "Cannot send FCM push, not configured".into(),
+                ))
+            }
         }
         PushToken::Apns(ref token) => {
-            let client = match endpoint.unwrap() {
-                Endpoint::Production => {
-                    debug!("Using production endpoint");
-                    &state.apns_client_prod
-                }
-                Endpoint::Sandbox => {
-                    debug!("Using sandbox endpoint");
-                    &state.apns_client_sbox
-                }
-            };
-            apns::send_push(
-                client,
-                token,
-                bundle_id.expect("bundle_id is None"),
-                version,
-                session_public_key,
-                affiliation,
-                collapse_id,
-                ttl,
-            )
-            .await
+            if let Some(apns_state) = state.apns_state {
+                apns::send_push(
+                    apns_state.get_for(endpoint.unwrap()),
+                    token,
+                    bundle_id.expect("bundle_id is None"),
+                    version,
+                    session_public_key,
+                    affiliation,
+                    collapse_id,
+                    ttl,
+                )
+                .await
+            } else {
+                // No FCM config found
+                Err(SendPushError::RemoteClient(
+                    "Cannot send APNS push, not configured".into(),
+                ))
+            }
         }
         PushToken::Hms {
             ref token,
@@ -584,9 +604,8 @@ mod tests {
             .unwrap();
 
         AppState {
-            fcm_state: Arc::new(fcm_state),
-            apns_client_prod,
-            apns_client_sbox,
+            fcm_state: Some(Arc::new(fcm_state)),
+            apns_state: Some(ApnsState::new(apns_client_prod, apns_client_sbox)),
             hms_contexts: Arc::new(HashMap::new()),
             hms_config: HmsEndpointConfig::stub_with(None),
             threema_gateway_client,

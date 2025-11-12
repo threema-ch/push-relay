@@ -27,6 +27,28 @@ use crate::{
 
 const PAYLOAD_KEY: &str = "3mw";
 
+#[derive(Clone)]
+pub struct ApnsState {
+    prod_client: Client,
+    sandbox_client: Client,
+}
+
+impl ApnsState {
+    pub fn new(prod_client: Client, sandbox_client: Client) -> Self {
+        Self {
+            prod_client,
+            sandbox_client,
+        }
+    }
+
+    pub fn get_for(&self, endpoint: Endpoint) -> &Client {
+        match endpoint {
+            Endpoint::Production => &self.prod_client,
+            Endpoint::Sandbox => &self.sandbox_client,
+        }
+    }
+}
+
 /// Create a new APNs client instance.
 pub fn create_client<S>(
     endpoint: Endpoint,

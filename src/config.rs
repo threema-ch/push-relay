@@ -7,8 +7,8 @@ use serde::{de::Error as DeserializeError, Deserialize, Deserializer};
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
-    pub fcm: FcmConfig,
-    pub apns: ApnsConfig,
+    pub fcm: Option<FcmConfig>,
+    pub apns: Option<ApnsConfig>,
     pub hms: Option<HashMap<String, HmsConfig>>,
     pub threema_gateway: Option<ThreemaGatewayConfig>,
     pub influxdb: Option<InfluxdbConfig>,
@@ -117,6 +117,11 @@ impl Config {
         let mut contents = String::new();
         file.read_to_string(&mut contents)
             .map_err(|e| e.to_string())?;
+
+        if contents.is_empty() {
+            return Err("Config is empty → Server has nothing to do".to_string());
+        }
+
         toml::from_str(&contents).map_err(|e| e.to_string())
     }
 }
