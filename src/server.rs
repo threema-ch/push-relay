@@ -422,7 +422,7 @@ async fn handle_push_request<R: RequestOauthToken>(
                 )
                 .await
             } else {
-                // No FCM config found
+                // No APNS config found
                 Err(SendPushError::RemoteClient(
                     "Cannot send APNS push, not configured".into(),
                 ))
