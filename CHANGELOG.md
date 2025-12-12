@@ -13,6 +13,10 @@ Possible log types:
 
 ### Unreleased
 
+- ...
+
+### [6.1.1][v6.1.1] (2025-12-12)
+
 - [changed] Bump rust toolchain to 1.92.0
 - [changed] Update dependencies
 
@@ -174,3 +178,4 @@ Note that the FCM config format has changed! See README for details.
 [v6.0.0]: https://github.com/threema-ch/push-relay/compare/v5.0.4...v6.0.0
 [v6.0.1]: https://github.com/threema-ch/push-relay/compare/v6.0.0...v6.0.1
 [v6.1.0]: https://github.com/threema-ch/push-relay/compare/v6.0.1...v6.1.0
+[v6.1.1]: https://github.com/threema-ch/push-relay/compare/v6.1.0...v6.1.1
