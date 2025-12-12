@@ -9,7 +9,7 @@ on:
 name: CI
 
 env:
-  RUST_VERSION: "1.91.1"
+  RUST_VERSION: "1.92.0"
 
 jobs:
   test:

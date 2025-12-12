@@ -13,7 +13,7 @@ Possible log types:
 
 ### Unreleased
 
-- ...
+- [changed] Bump rust toolchain to 1.92.0
 
 ### [6.1.0][v6.1.0] (2025-11-12)
 
