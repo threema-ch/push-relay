@@ -16,6 +16,7 @@ Possible log types:
 - [changed] Bump rust toolchain to 1.93.0
 - [changed] Update dependencies
 - [changed] Migrate to apns-h2
+- [changed] Update reqwest to 0.13.1
 
 ### [6.1.1][v6.1.1] (2025-12-12)
 
