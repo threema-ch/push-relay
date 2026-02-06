@@ -1,7 +1,6 @@
 //! Code related to the sending of APNs push notifications.
 
 use std::{
-    collections::BTreeMap,
     convert::Into,
     io::Read,
     time::{Duration, SystemTime},
@@ -10,11 +9,8 @@ use std::{
 use apns_h2::{
     client::{Client, Endpoint},
     error::Error as A2Error,
-    request::{
-        notification::{
-            DefaultNotificationBuilder, NotificationBuilder, NotificationOptions, Priority,
-        },
-        payload::{APSAlert, APSSound, Payload, APS},
+    request::notification::{
+        DefaultNotificationBuilder, NotificationBuilder, NotificationOptions, Priority,
     },
     response::ErrorReason,
     ClientConfig, CollapseId, PushType,
@@ -115,17 +111,11 @@ pub async fn send_push(
             .build(&push_token.0, options)
     } else {
         // Regular push, build notification ourselves for full control
-        Payload {
-            options,
-            device_token: push_token.as_ref().into(),
-            aps: APS {
-                alert: Some(APSAlert::Body("Threema Web Wakeup".into())),
-                sound: Some(APSSound::Sound("default".into())),
-                mutable_content: Some(1),
-                ..Default::default()
-            },
-            data: BTreeMap::new(),
-        }
+        DefaultNotificationBuilder::new()
+            .body("Threema Web Wakeup")
+            .sound("default")
+            .mutable_content()
+            .build(push_token.0.as_str(), options)
     };
 
     let data = ThreemaPayload::new(session, affiliation, version, false);
