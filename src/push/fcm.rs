@@ -3,15 +3,16 @@
 use std::{borrow::Cow, sync::Arc, time::Duration};
 
 use anyhow::Context;
-use futures::{future::BoxFuture, Future, FutureExt};
+use futures::{Future, FutureExt, future::BoxFuture};
 use rand::Rng;
 use reqwest::{
+    Client as HttpClient, StatusCode,
     header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE, RETRY_AFTER},
-    tls, Client as HttpClient, StatusCode,
+    tls,
 };
 use serde::{Deserialize, Serialize as DeriveSerialize, Serialize, Serializer};
 
-use yup_oauth2::{authenticator::DefaultAuthenticator, AccessToken, ServiceAccountAuthenticator};
+use yup_oauth2::{AccessToken, ServiceAccountAuthenticator, authenticator::DefaultAuthenticator};
 
 use crate::{
     config::{self, FcmApplicationSecret},
@@ -379,7 +380,7 @@ async fn _send_push(
         StatusCode::UNAUTHORIZED | StatusCode::PAYMENT_REQUIRED => {
             return Err(SendPushError::RemoteClient(format!(
                 "Unrecoverable error code received: HTTP {status_code}"
-            )))
+            )));
         }
         status if can_push_be_retried(status) => {
             if try_counter >= state.config.max_retries {
@@ -406,7 +407,7 @@ async fn _send_push(
         _ if status_code >= 300 => {
             return Err(SendPushError::RemoteServer(format!(
                 "Unknown http error code: HTTP {status_code}"
-            )))
+            )));
         }
         _ => trace!("HTTP status code: {}", status_code),
     }

@@ -4,21 +4,21 @@ use std::str;
 
 use aead::AeadInPlace;
 use crypto_secretbox::{
-    aead::{AeadCore, KeyInit, OsRng},
     XSalsa20Poly1305,
+    aead::{AeadCore, KeyInit, OsRng},
 };
 use data_encoding::HEXLOWER;
 use reqwest::{
-    header::{ACCEPT, CONTENT_TYPE},
     Client, StatusCode,
+    header::{ACCEPT, CONTENT_TYPE},
 };
 use serde_json as json;
 use x25519_dalek::StaticSecret;
 
 use crate::{
-    errors::SendPushError,
-    push::{threema_gateway::x25519::SharedSecretHSalsa20, ThreemaPayload},
     ThreemaGatewayPrivateKey,
+    errors::SendPushError,
+    push::{ThreemaPayload, threema_gateway::x25519::SharedSecretHSalsa20},
 };
 
 mod x25519 {

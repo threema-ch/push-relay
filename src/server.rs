@@ -2,33 +2,34 @@ use std::{borrow::Cow, collections::HashMap, convert::Into, net::SocketAddr, syn
 
 use apns_h2::{CollapseId, Endpoint};
 use axum::{
+    Router,
     body::Body,
     extract::State,
     http::{Request, StatusCode},
     response::Response,
     routing::post,
-    Router,
 };
 use data_encoding::HEXLOWER_PERMISSIVE;
 use futures::future::{BoxFuture, FutureExt};
-use reqwest::{header::CONTENT_TYPE, Client as HttpClient};
+use reqwest::{Client as HttpClient, header::CONTENT_TYPE};
 use tokio::net::TcpListener;
 use tower::ServiceBuilder;
 use tower_http::trace::{self, TraceLayer};
 use tracing::Level;
 
 use crate::{
+    ThreemaGatewayPrivateKey,
     config::{Config, ThreemaGatewayConfig},
     errors::{InfluxdbError, InitError, SendPushError, ServiceError},
     http_client,
     influxdb::Influxdb,
     push::{
+        ApnsToken, FcmToken, HmsToken, PushToken, ThreemaPayload,
         apns::{self, ApnsState},
         fcm::{self, AndroidTtlSeconds, FcmState, HttpOauthTokenObtainer, RequestOauthToken},
         hms::{self, HmsContext, HmsEndpointConfig},
-        threema_gateway, ApnsToken, FcmToken, HmsToken, PushToken, ThreemaPayload,
+        threema_gateway,
     },
-    ThreemaGatewayPrivateKey,
 };
 
 static COLLAPSE_KEY_PREFIX: &str = "relay";
@@ -246,7 +247,7 @@ async fn handle_push_request<R: RequestOauthToken>(
     /// Iterate over parameters and find first matching key.
     /// Return an option.
     macro_rules! find {
-        ($name:expr) => {
+        ($name:expr_2021) => {
             parsed
                 .iter()
                 .find(|&&(ref k, _)| k == $name)
@@ -257,7 +258,7 @@ async fn handle_push_request<R: RequestOauthToken>(
     /// Iterate over parameters and find first matching key.
     /// If the key is not found, then return a HTTP 400 response.
     macro_rules! find_or_bad_request {
-        ($name:expr) => {
+        ($name:expr_2021) => {
             match find!($name) {
                 Some(v) => v,
                 None => {
@@ -271,7 +272,7 @@ async fn handle_push_request<R: RequestOauthToken>(
     /// Iterate over parameters and find first matching key.
     /// If the key is not found, return a default.
     macro_rules! find_or_default {
-        ($name:expr, $default:expr) => {
+        ($name:expr_2021, $default:expr_2021) => {
             match find!($name) {
                 Some(v) => v,
                 None => $default,
@@ -454,28 +455,31 @@ async fn handle_push_request<R: RequestOauthToken>(
             ref identity,
             ref public_key,
         } => {
-            if let (Some(threema_gateway_config), Some(threema_gateway_private_key)) = (
+            match (
                 state.threema_gateway_config,
                 state.threema_gateway_private_key,
             ) {
-                threema_gateway::send_push(
-                    &state.threema_gateway_client,
-                    &threema_gateway_config.base_url,
-                    &threema_gateway_config.secret,
-                    &threema_gateway_config.identity,
-                    threema_gateway_private_key,
-                    identity,
-                    *public_key,
-                    version,
-                    session_public_key,
-                    affiliation,
-                )
-                .await
-            } else {
-                // No config found for Threema Gateway
-                Err(SendPushError::RemoteClient(
-                    "Cannot send Threema Gateway Push, not configured".into(),
-                ))
+                (Some(threema_gateway_config), Some(threema_gateway_private_key)) => {
+                    threema_gateway::send_push(
+                        &state.threema_gateway_client,
+                        &threema_gateway_config.base_url,
+                        &threema_gateway_config.secret,
+                        &threema_gateway_config.identity,
+                        threema_gateway_private_key,
+                        identity,
+                        *public_key,
+                        version,
+                        session_public_key,
+                        affiliation,
+                    )
+                    .await
+                }
+                _ => {
+                    // No config found for Threema Gateway
+                    Err(SendPushError::RemoteClient(
+                        "Cannot send Threema Gateway Push, not configured".into(),
+                    ))
+                }
             }
         }
     };
@@ -527,8 +531,8 @@ mod tests {
     use futures::StreamExt;
     use tower::util::ServiceExt;
     use wiremock::{
-        matchers::{body_partial_json, method, path},
         Mock, MockServer, ResponseTemplate,
+        matchers::{body_partial_json, method, path},
     };
 
     use crate::{
@@ -536,7 +540,7 @@ mod tests {
         server::tests::fcm::test::get_fcm_test_path,
     };
 
-    use self::fcm::{test::MockAccessTokenObtainer, RequestOauthToken};
+    use self::fcm::{RequestOauthToken, test::MockAccessTokenObtainer};
 
     use super::*;
 

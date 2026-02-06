@@ -25,7 +25,7 @@ mod server;
 
 use std::{fs::File, io::Read, net::SocketAddr, path::PathBuf};
 
-use anyhow::{anyhow, Context as _};
+use anyhow::{Context as _, anyhow};
 use clap::Parser;
 use data_encoding::HEXLOWER_PERMISSIVE;
 use zeroize::{ZeroizeOnDrop, Zeroizing};

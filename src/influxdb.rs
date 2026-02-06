@@ -1,9 +1,9 @@
 use std::str::from_utf8;
 
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use reqwest::{
-    header::{AUTHORIZATION, CONTENT_TYPE},
     Body, Client, StatusCode,
+    header::{AUTHORIZATION, CONTENT_TYPE},
 };
 
 use crate::{errors::InfluxdbError, http_client::make_client};

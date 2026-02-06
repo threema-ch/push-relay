@@ -17,6 +17,7 @@ Possible log types:
 - [changed] Update dependencies
 - [changed] Migrate to apns-h2
 - [changed] Update reqwest to 0.13.1
+- [changed] Migrate to edition 2024
 
 ### [6.1.1][v6.1.1] (2025-12-12)
 
