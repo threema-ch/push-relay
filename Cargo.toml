@@ -8,7 +8,7 @@ repository = "https://github.com/threema-ch/push-relay"
 edition = "2021"
 
 [dependencies]
-a2 = { version = "0.10", features = ["tracing"] }
+apns-h2 = { version = "0.11.0", features = ["tracing", "aws-lc-rs"], default-features = false }
 aead = "0.5"
 anyhow = "1.0.81"
 axum = { version = "0.8.1", features = ["http1", "http2", "tokio"], default-features = false }

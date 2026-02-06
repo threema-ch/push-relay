@@ -7,7 +7,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use a2::{
+use apns_h2::{
     client::{Client, Endpoint},
     error::Error as A2Error,
     request::{
@@ -111,21 +111,18 @@ pub async fn send_push(
         // This is a voip push, so use notification without body but `content-available` set to 1 to allow device wakeup
         // even though push is empty (silent notifications)
         DefaultNotificationBuilder::new()
-            .set_content_available()
+            .content_available()
             .build(&push_token.0, options)
     } else {
         // Regular push, build notification ourselves for full control
         Payload {
             options,
-            device_token: &push_token.0,
+            device_token: push_token.as_ref().into(),
             aps: APS {
-                alert: Some(APSAlert::Body("Threema Web Wakeup")),
-                badge: None,
-                sound: Some(APSSound::Sound("default")),
-                content_available: None,
-                category: None,
+                alert: Some(APSAlert::Body("Threema Web Wakeup".into())),
+                sound: Some(APSSound::Sound("default".into())),
                 mutable_content: Some(1),
-                url_args: None,
+                ..Default::default()
             },
             data: BTreeMap::new(),
         }
@@ -148,8 +145,12 @@ pub async fn send_push(
                     trace!("Response body: {:?}", body);
                     match body.reason {
                         // Invalid device token
+                        ErrorReason::ExpiredToken |
                         ErrorReason::BadDeviceToken |
                         ErrorReason::Unregistered |
+                        // Key id of provider token does not match token or environment
+                        ErrorReason::BadEnvironmentKeyIdInToken |
+                        ErrorReason::UnrelatedKeyIdInToken |
                         // Invalid expiration date (invalid TTL)
                         ErrorReason::BadExpirationDate |
                         // Invalid topic (bundle id)
@@ -167,6 +168,7 @@ pub async fn send_push(
                         ErrorReason::DuplicateHeaders |
                         ErrorReason::Forbidden |
                         ErrorReason::IdleTimeout |
+                        ErrorReason::InvalidPushType |
                         ErrorReason::MissingDeviceToken |
                         ErrorReason::MissingTopic |
                         ErrorReason::PayloadEmpty |

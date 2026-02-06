@@ -1,4 +1,4 @@
-use a2::error::Error as A2Error;
+use apns_h2::error::Error as A2Error;
 use axum::response::{IntoResponse, Response};
 use reqwest::{Error as ReqwestError, StatusCode};
 use thiserror::Error;

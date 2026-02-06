@@ -1,6 +1,6 @@
 use std::{borrow::Cow, collections::HashMap, convert::Into, net::SocketAddr, sync::Arc};
 
-use a2::{CollapseId, Endpoint};
+use apns_h2::{CollapseId, Endpoint};
 use axum::{
     body::Body,
     extract::State,

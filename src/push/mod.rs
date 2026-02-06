@@ -14,6 +14,12 @@ pub struct FcmToken(pub String);
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ApnsToken(pub String);
 
+impl AsRef<str> for ApnsToken {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
 /// A HMS token.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct HmsToken(pub String);
