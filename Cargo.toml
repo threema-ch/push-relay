@@ -38,5 +38,6 @@ zeroize = "1.6"
 
 [dev-dependencies]
 argparse = "*"
-openssl = "*"
+p256 = "0.13.2"
+pkcs8 = "0.10.2"
 wiremock = "0.6.0"
