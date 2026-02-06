@@ -521,12 +521,10 @@ async fn handle_push_request<R: RequestOauthToken>(
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
+
     use axum::http::{Request, Response};
     use futures::StreamExt;
-    use openssl::{
-        ec::{EcGroup, EcKey},
-        nid::Nid,
-    };
     use tower::util::ServiceExt;
     use wiremock::{
         matchers::{body_partial_json, method, path},
@@ -551,11 +549,12 @@ mod tests {
         ::std::str::from_utf8(&full_body).unwrap().to_string()
     }
 
-    fn get_apns_test_key() -> Vec<u8> {
-        let curve: Nid = Nid::SECP128R1;
-        let group = EcGroup::from_curve_name(curve).unwrap();
-        let key = EcKey::generate(&group).unwrap();
-        key.private_key_to_pem().unwrap()
+    fn get_apns_test_key() -> zeroize::Zeroizing<String> {
+        use p256::{ecdsa::SigningKey, elliptic_curve::rand_core::OsRng as p256_OsRng};
+        use pkcs8::EncodePrivateKey;
+
+        let signing_key = SigningKey::random(&mut p256_OsRng);
+        signing_key.to_pkcs8_pem(pkcs8::LineEnding::LF).unwrap()
     }
 
     fn get_test_max_retries() -> u8 {
@@ -582,14 +581,18 @@ mod tests {
         let api_key = get_apns_test_key();
         let apns_client_prod = apns::create_client(
             Endpoint::Production,
-            api_key.as_slice(),
+            Cursor::new(api_key.as_str()),
             "team_id",
             "key_id",
         )
         .unwrap();
-        let apns_client_sbox =
-            apns::create_client(Endpoint::Sandbox, api_key.as_slice(), "team_id", "key_id")
-                .unwrap();
+        let apns_client_sbox = apns::create_client(
+            Endpoint::Sandbox,
+            Cursor::new(api_key.as_str()),
+            "team_id",
+            "key_id",
+        )
+        .unwrap();
         let threema_gateway_client = http_client::make_client(10).expect("threema_gateway_client");
 
         let access_tokan_obtainer = fcm::test::MockAccessTokenObtainer::new(
