@@ -7,13 +7,13 @@ use std::{
 };
 
 use apns_h2::{
+    ClientConfig, CollapseId, PushType,
     client::{Client, Endpoint},
     error::Error as A2Error,
     request::notification::{
         DefaultNotificationBuilder, NotificationBuilder, NotificationOptions, Priority,
     },
     response::ErrorReason,
-    ClientConfig, CollapseId, PushType,
 };
 
 use crate::{
@@ -130,10 +130,11 @@ pub async fn send_push(
             Ok(())
         }
         Err(e) => {
-            if let A2Error::ResponseError(ref resp) = e {
-                if let Some(ref body) = resp.error {
-                    trace!("Response body: {:?}", body);
-                    match body.reason {
+            if let A2Error::ResponseError(ref resp) = e
+                && let Some(ref body) = resp.error
+            {
+                trace!("Response body: {:?}", body);
+                match body.reason {
                         // Invalid device token
                         ErrorReason::ExpiredToken |
                         ErrorReason::BadDeviceToken |
@@ -180,7 +181,6 @@ pub async fn send_push(
                         ErrorReason::ServiceUnavailable |
                         ErrorReason::Shutdown => {}
                     };
-                }
             }
 
             // Treat all other errors as server errors

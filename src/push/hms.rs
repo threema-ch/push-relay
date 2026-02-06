@@ -21,8 +21,8 @@ use std::{
 };
 
 use reqwest::{
-    header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE},
     Client, StatusCode,
+    header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE},
 };
 use serde::{Deserialize, Serialize};
 use serde_json as json;
@@ -521,8 +521,8 @@ mod tests {
 
     mod context {
         use wiremock::{
-            matchers::{body_string, method},
             Mock, MockServer, ResponseTemplate,
+            matchers::{body_string, method},
         };
 
         use super::*;

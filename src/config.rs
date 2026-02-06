@@ -2,8 +2,8 @@
 
 use std::{collections::HashMap, fs::File, io::Read, ops::Deref, path::Path, time::Duration};
 
-use base64::{engine::general_purpose, Engine};
-use serde::{de::Error as DeserializeError, Deserialize, Deserializer};
+use base64::{Engine, engine::general_purpose};
+use serde::{Deserialize, Deserializer, de::Error as DeserializeError};
 
 #[derive(Debug, Deserialize)]
 pub struct Config {

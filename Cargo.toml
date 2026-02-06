@@ -4,7 +4,7 @@ description = "This server accepts push requests via HTTP and notifies FCM/APNs 
 version = "6.1.1"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/threema-ch/push-relay"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 apns-h2 = { version = "0.11.0", features = ["tracing", "aws-lc-rs"], default-features = false }
