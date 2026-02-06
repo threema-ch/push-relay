@@ -2,7 +2,6 @@
 name = "push-relay"
 description = "This server accepts push requests via HTTP and notifies FCM/APNs push services."
 version = "6.1.1"
-authors = ["Threema GmbH"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/threema-ch/push-relay"
 edition = "2021"
