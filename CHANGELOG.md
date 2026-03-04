@@ -13,6 +13,10 @@ Possible log types:
 
 ### Unreleased
 
+- ...
+
+### [7.0.1][v7.0.1] (2026-03-04)
+
 - [changed] Update dependencies
 
 ### [7.0.0][v7.0.0] (2026-02-06)
@@ -188,3 +192,4 @@ Note that the FCM config format has changed! See README for details.
 [v6.1.0]: https://github.com/threema-ch/push-relay/compare/v6.0.1...v6.1.0
 [v6.1.1]: https://github.com/threema-ch/push-relay/compare/v6.1.0...v6.1.1
 [v7.0.0]: https://github.com/threema-ch/push-relay/compare/v6.1.1...v7.0.0
+[v7.0.1]: https://github.com/threema-ch/push-relay/compare/v7.0.0...v7.0.1
