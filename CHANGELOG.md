@@ -13,7 +13,7 @@ Possible log types:
 
 ### Unreleased
 
-- ...
+- [changed] Update dependencies
 
 ### [7.0.0][v7.0.0] (2026-02-06)
 
