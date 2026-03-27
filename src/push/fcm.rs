@@ -4,7 +4,7 @@ use std::{borrow::Cow, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use futures::{Future, FutureExt, future::BoxFuture};
-use rand::Rng;
+use rand::RngExt;
 use reqwest::{
     Client as HttpClient, StatusCode,
     header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE, RETRY_AFTER},
