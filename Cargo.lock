@@ -1934,7 +1934,7 @@ dependencies = [
  "hostname",
  "p256",
  "pkcs8",
- "rand 0.9.2",
+ "rand 0.10.0",
  "reqwest",
  "salsa20",
  "serde",
