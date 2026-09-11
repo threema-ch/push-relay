@@ -8,18 +8,14 @@ on:
 
 name: CI
 
-env:
-  RUST_VERSION: "1.94.1"
-
 jobs:
   test:
     name: run tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@v1
-        with:
-          toolchain: $RUST_VERSION
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
       - run: cargo build
       - run: cargo test --all-features
 
@@ -27,29 +23,26 @@ jobs:
     name: run clippy lints
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@v1
-        with:
-          toolchain: $RUST_VERSION
-          components: clippy
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --all-features -- -D warnings
 
   fmt:
     name: run rustfmt
     runs-on: ubuntu-latest
+    env:
+      NIGHTLY_DATE: "2026-10-23"
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@v1
-        with:
-          toolchain: nightly
-          components: rustfmt
-      - run: rm rust-toolchain.toml
-      - run: cargo fmt --all --check
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install nightly-$NIGHTLY_DATE --component rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo +nightly-$NIGHTLY_DATE fmt --all --check
 
   audit:
     name: run cargo audit
     runs-on: ubuntu-latest
     container: dbrgn/cargo-audit:latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: cargo audit
