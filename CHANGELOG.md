@@ -14,6 +14,7 @@ Possible log types:
 ## Unreleased
 
 - [changed] Bump rust toolchain to 1.98.1
+- [changed] Update dependencies
 
 ## [7.0.2][v7.0.2] (2026-03-27)
 
