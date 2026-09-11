@@ -65,7 +65,7 @@ impl Influxdb {
         // Send request
         let response = self
             .client
-            .post(format!("{}/query", &self.connection_string))
+            .post(format!("{}/query", self.connection_string))
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
             .header(AUTHORIZATION, &self.authorization)
             .body(body)
@@ -97,7 +97,7 @@ impl Influxdb {
         // Send request
         let response = self
             .client
-            .post(format!("{}/write?db={}", &self.connection_string, &self.db))
+            .post(format!("{}/write?db={}", self.connection_string, self.db))
             .header(AUTHORIZATION, &self.authorization)
             .body(body)
             .send()

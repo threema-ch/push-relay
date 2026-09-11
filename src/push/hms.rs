@@ -168,7 +168,7 @@ impl fmt::Display for HmsCode {
         const PREFIX: &str = "HMS push failed";
         match &self {
             &Self::Other(reason) => write!(f, "{PREFIX} with unspecified code: {reason}"),
-            _ => write!(f, "{}: {:?}", PREFIX, &self),
+            _ => write!(f, "{}: {:?}", PREFIX, self),
         }
     }
 }
