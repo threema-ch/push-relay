@@ -13,6 +13,10 @@ Possible log types:
 
 ## Unreleased
 
+- ...
+
+## [7.0.3][v7.0.3] (2026-09-11)
+
 - [changed] Bump rust toolchain to 1.98.1
 - [changed] Update dependencies
 
@@ -195,3 +199,4 @@ Note that the FCM config format has changed! See README for details.
 [v7.0.0]: https://github.com/threema-ch/push-relay/compare/v6.1.1...v7.0.0
 [v7.0.1]: https://github.com/threema-ch/push-relay/compare/v7.0.0...v7.0.1
 [v7.0.2]: https://github.com/threema-ch/push-relay/compare/v7.0.1...v7.0.2
+[v7.0.3]: https://github.com/threema-ch/push-relay/compare/v7.0.2...v7.0.3

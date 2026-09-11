@@ -1889,7 +1889,7 @@ dependencies = [
 
 [[package]]
 name = "push-relay"
-version = "7.0.2"
+version = "7.0.3"
 dependencies = [
  "aead",
  "anyhow",
