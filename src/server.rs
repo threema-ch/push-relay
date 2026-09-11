@@ -73,10 +73,9 @@ pub async fn serve(
     let fcm_state = if let Some(fcm_config) = fcm {
         info!("Found FCM config");
 
-        let token_obtainer =
-            HttpOauthTokenObtainer::new(&fcm_config.service_account_key, *fcm_config.timeout)
-                .await
-                .map_err(InitError::Fcm)?;
+        let token_obtainer = HttpOauthTokenObtainer::new(&fcm_config.service_account_key, *fcm_config.timeout)
+            .await
+            .map_err(InitError::Fcm)?;
 
         Some(Arc::new(
             FcmState::new(&fcm_config, None, token_obtainer)
@@ -104,7 +103,7 @@ pub async fn serve(
             )?;
 
             Some(ApnsState::new(prod_client, sandbox_client))
-        }
+        },
         _ => None,
     };
 
@@ -114,12 +113,7 @@ pub async fn serve(
     // Create a HMS context for every config entry
     let hms_contexts = Arc::new(
         hms.iter()
-            .map(|(k, v)| {
-                (
-                    k.to_string(),
-                    HmsContext::new(hms_client.clone(), v.clone()),
-                )
-            })
+            .map(|(k, v)| (k.to_string(), HmsContext::new(hms_client.clone(), v.clone())))
             .collect::<HashMap<String, HmsContext>>(),
     );
 
@@ -129,8 +123,7 @@ pub async fn serve(
     // Create InfluxDB client
     let influxdb = influxdb.map(|c| {
         Arc::new(
-            Influxdb::new(c.connection_string, &c.user, &c.pass, c.db)
-                .expect("Failed to create Influxdb instance"),
+            Influxdb::new(c.connection_string, &c.user, &c.pass, c.db).expect("Failed to create Influxdb instance"),
         )
     });
 
@@ -146,7 +139,7 @@ pub async fn serve(
                                 Ok(_) => log_started(db).await,
                                 Err(e) => error!("Could not create InfluxDB database: {}", e),
                             }
-                        }
+                        },
                         other => error!("Could not log starting event to InfluxDB: {}", other),
                     }
                 };
@@ -172,22 +165,17 @@ pub async fn serve(
 
     let app = get_router::<HttpOauthTokenObtainer>(state);
 
-    let listener = TcpListener::bind(listen_on)
-        .await
-        .map_err(|source| InitError::Io {
-            reason: "Failed to bind to address",
-            source,
-        })?;
+    let listener = TcpListener::bind(listen_on).await.map_err(|source| InitError::Io {
+        reason: "Failed to bind to address",
+        source,
+    })?;
 
-    axum::serve(
-        listener,
-        app.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .await
-    .map_err(|e| InitError::Io {
-        reason: "Failed to serve app",
-        source: e,
-    })
+    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
+        .await
+        .map_err(|e| InitError::Io {
+            reason: "Failed to serve app",
+            source: e,
+        })
 }
 
 fn get_router<R: RequestOauthToken + 'static>(state: AppState<R>) -> Router {
@@ -225,15 +213,15 @@ async fn handle_push_request<R: RequestOauthToken>(
     // Verify content type
     let content_type = headers.get(CONTENT_TYPE).and_then(|h| h.to_str().ok());
     match content_type {
-        Some(ct) if ct.starts_with("application/x-www-form-urlencoded") => {}
+        Some(ct) if ct.starts_with("application/x-www-form-urlencoded") => {},
         Some(ct) => {
             warn!("Bad request, invalid content type: {}", ct);
             return Err(ServiceError::InvalidContentType(ct.to_owned()));
-        }
+        },
         None => {
             warn!("Bad request, missing content type");
             return Err(ServiceError::MissingContentType);
-        }
+        },
     }
 
     let parsed = form_urlencoded::parse(&body).collect::<Vec<_>>();
@@ -248,10 +236,7 @@ async fn handle_push_request<R: RequestOauthToken>(
     /// Return an option.
     macro_rules! find {
         ($name:expr_2021) => {
-            parsed
-                .iter()
-                .find(|&&(ref k, _)| k == $name)
-                .map(|&(_, ref v)| v)
+            parsed.iter().find(|&&(ref k, _)| k == $name).map(|&(_, ref v)| v)
         };
     }
 
@@ -264,7 +249,7 @@ async fn handle_push_request<R: RequestOauthToken>(
                 None => {
                     warn!("Missing request parameter: {}", $name);
                     return Err(ServiceError::MissingParams);
-                }
+                },
             }
         };
     }
@@ -309,28 +294,19 @@ async fn handle_push_request<R: RequestOauthToken>(
                 return Err(ServiceError::InvalidParams);
             }
             let Ok(public_key) = HEXLOWER_PERMISSIVE.decode(public_key_hex.as_bytes()) else {
-                warn!(
-                    "Got push request with invalid public key: {}",
-                    public_key_hex
-                );
+                warn!("Got push request with invalid public key: {}", public_key_hex);
                 return Err(ServiceError::InvalidParams);
             };
             let Ok(public_key) = public_key.try_into() else {
-                warn!(
-                    "Got push request with invalid public key: {}",
-                    public_key_hex
-                );
+                warn!("Got push request with invalid public key: {}", public_key_hex);
                 return Err(ServiceError::InvalidParams);
             };
-            PushToken::ThreemaGateway {
-                identity,
-                public_key,
-            }
-        }
+            PushToken::ThreemaGateway { identity, public_key }
+        },
         other => {
             warn!("Got push request with invalid token type: {}", other);
             return Err(ServiceError::InvalidParams);
-        }
+        },
     };
     let session_public_key = find_or_bad_request!("session");
     let version_string = find_or_bad_request!("version");
@@ -339,7 +315,7 @@ async fn handle_push_request<R: RequestOauthToken>(
         Err(e) => {
             warn!("Got push request with invalid version param: {:?}", e);
             return Err(ServiceError::InvalidParams);
-        }
+        },
     };
     let affiliation = find!("affiliation").map(Cow::as_ref);
     let ttl_string = find!("ttl").map(|ttl_str| ttl_str.trim().parse());
@@ -351,8 +327,7 @@ async fn handle_push_request<R: RequestOauthToken>(
         // No TTL value was specified
         None => TTL_DEFAULT,
     };
-    let collapse_key: Option<String> =
-        find!("collapse_key").map(|key| format!("{COLLAPSE_KEY_PREFIX}.{key}"));
+    let collapse_key: Option<String> = find!("collapse_key").map(|key| format!("{COLLAPSE_KEY_PREFIX}.{key}"));
 
     #[allow(clippy::match_wildcard_for_single_variants)]
     let (bundle_id, endpoint, collapse_id) = match push_token {
@@ -370,7 +345,7 @@ async fn handle_push_request<R: RequestOauthToken>(
                 None => None,
             };
             (bundle_id, endpoint, collapse_id)
-        }
+        },
         _ => (None, None, None),
     };
 
@@ -408,7 +383,7 @@ async fn handle_push_request<R: RequestOauthToken>(
                     "Cannot send FCM push, not configured".into(),
                 ))
             }
-        }
+        },
         PushToken::Apns(ref token) => {
             if let Some(apns_state) = state.apns_state {
                 apns::send_push(
@@ -428,11 +403,8 @@ async fn handle_push_request<R: RequestOauthToken>(
                     "Cannot send APNS push, not configured".into(),
                 ))
             }
-        }
-        PushToken::Hms {
-            ref token,
-            ref app_id,
-        } => match state.hms_contexts.get(app_id) {
+        },
+        PushToken::Hms { ref token, ref app_id } => match state.hms_contexts.get(app_id) {
             // We found a context for this App ID
             Some(context) => {
                 hms::send_push(
@@ -445,20 +417,15 @@ async fn handle_push_request<R: RequestOauthToken>(
                     ttl,
                 )
                 .await
-            }
+            },
             // No config found for this App ID
-            None => Err(SendPushError::RemoteClient(format!(
-                "Unknown HMS App ID: {app_id}"
-            ))),
+            None => Err(SendPushError::RemoteClient(format!("Unknown HMS App ID: {app_id}"))),
         },
         PushToken::ThreemaGateway {
             ref identity,
             ref public_key,
         } => {
-            match (
-                state.threema_gateway_config,
-                state.threema_gateway_private_key,
-            ) {
+            match (state.threema_gateway_config, state.threema_gateway_private_key) {
                 (Some(threema_gateway_config), Some(threema_gateway_private_key)) => {
                     threema_gateway::send_push(
                         &state.threema_gateway_client,
@@ -473,15 +440,15 @@ async fn handle_push_request<R: RequestOauthToken>(
                         affiliation,
                     )
                     .await
-                }
+                },
                 _ => {
                     // No config found for Threema Gateway
                     Err(SendPushError::RemoteClient(
                         "Cannot send Threema Gateway Push, not configured".into(),
                     ))
-                }
+                },
             }
-        }
+        },
     };
 
     // Log to InfluxDB
@@ -503,18 +470,14 @@ async fn handle_push_request<R: RequestOauthToken>(
                 .header(CONTENT_TYPE, "text/plain")
                 .body(Body::empty())
                 .unwrap())
-        }
+        },
         Err(e) => Ok(Response::builder()
             .status({
                 info!("{e}");
                 match e {
                     SendPushError::RemoteServer(_) => StatusCode::BAD_GATEWAY,
-                    SendPushError::SendError(_) | SendPushError::RemoteClient(_) => {
-                        StatusCode::BAD_REQUEST
-                    }
-                    SendPushError::Internal(_) | SendPushError::RemoteAuth(_) => {
-                        StatusCode::INTERNAL_SERVER_ERROR
-                    }
+                    SendPushError::SendError(_) | SendPushError::RemoteClient(_) => StatusCode::BAD_REQUEST,
+                    SendPushError::Internal(_) | SendPushError::RemoteAuth(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 }
             })
             .header(CONTENT_TYPE, "text/plain")
@@ -535,14 +498,12 @@ mod tests {
         matchers::{body_partial_json, method, path},
     };
 
+    use self::fcm::{RequestOauthToken, test::MockAccessTokenObtainer};
+    use super::*;
     use crate::{
         config::{FcmConfig, FcmTimeout},
         server::tests::fcm::test::get_fcm_test_path,
     };
-
-    use self::fcm::{RequestOauthToken, test::MockAccessTokenObtainer};
-
-    use super::*;
 
     async fn get_body(res: Response<Body>) -> String {
         let mut full_body = Vec::new();
@@ -578,33 +539,18 @@ mod tests {
         "{\"name\":\"mock-response\"}"
     }
 
-    async fn get_test_state(
-        fcm_config: &FcmConfig,
-        fcm_endpoint: Option<String>,
-    ) -> AppState<MockAccessTokenObtainer> {
+    async fn get_test_state(fcm_config: &FcmConfig, fcm_endpoint: Option<String>) -> AppState<MockAccessTokenObtainer> {
         let api_key = get_apns_test_key();
-        let apns_client_prod = apns::create_client(
-            Endpoint::Production,
-            Cursor::new(api_key.as_str()),
-            "team_id",
-            "key_id",
-        )
-        .unwrap();
-        let apns_client_sbox = apns::create_client(
-            Endpoint::Sandbox,
-            Cursor::new(api_key.as_str()),
-            "team_id",
-            "key_id",
-        )
-        .unwrap();
+        let apns_client_prod =
+            apns::create_client(Endpoint::Production, Cursor::new(api_key.as_str()), "team_id", "key_id").unwrap();
+        let apns_client_sbox =
+            apns::create_client(Endpoint::Sandbox, Cursor::new(api_key.as_str()), "team_id", "key_id").unwrap();
         let threema_gateway_client = http_client::make_client(10).expect("threema_gateway_client");
 
-        let access_tokan_obtainer = fcm::test::MockAccessTokenObtainer::new(
-            &fcm_config.service_account_key,
-            *fcm_config.timeout,
-        )
-        .await
-        .expect("MockAccessTokenObtainer");
+        let access_tokan_obtainer =
+            fcm::test::MockAccessTokenObtainer::new(&fcm_config.service_account_key, *fcm_config.timeout)
+                .await
+                .expect("MockAccessTokenObtainer");
 
         let fcm_state = FcmState::new(fcm_config, fcm_endpoint, access_tokan_obtainer)
             .await
@@ -742,10 +688,7 @@ mod tests {
 
         let req = Request::post(PUSH_PATH)
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .body(
-                "type=apns&token=1234&session=123deadbeef&version=3&bundleid=jklö&endpoint=q"
-                    .to_string(),
-            )
+            .body("type=apns&token=1234&session=123deadbeef&version=3&bundleid=jklö&endpoint=q".to_string())
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
 
@@ -777,10 +720,7 @@ mod tests {
 
         let req = Request::post(PUSH_PATH)
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .body(
-                "type=fcm&token=aassddff&session=deadbeef&version=1&ttl=9999999999999999"
-                    .to_string(),
-            )
+            .body("type=fcm&token=aassddff&session=deadbeef&version=1&ttl=9999999999999999".to_string())
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
 
@@ -881,7 +821,8 @@ mod tests {
         let req = Request::post(PUSH_PATH)
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
             .body(format!(
-                "type=fcm&token={to}&session={session}&version={version}&collapse_key={collapse_key}&affiliation={affiliation_id}",
+                "type=fcm&token={to}&session={session}&version={version}&collapse_key={collapse_key}&\
+                 affiliation={affiliation_id}",
             ))
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
@@ -904,8 +845,7 @@ mod tests {
 
         let (app, fcm_config) = get_test_app(Some(mock_server.uri())).await;
 
-        let error_body =
-            fcm::test::get_fcm_error(status_code, &format!("Description of the error {msg}"), msg);
+        let error_body = fcm::test::get_fcm_error(status_code, &format!("Description of the error {msg}"), msg);
 
         Mock::given(method("POST"))
             .and(path(get_fcm_test_path(&fcm_config)))
@@ -942,13 +882,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_fcm_unregistered() {
-        test_fcm_process_error(
-            "UNREGISTERED",
-            StatusCode::NOT_FOUND,
-            None,
-            StatusCode::BAD_REQUEST,
-        )
-        .await;
+        test_fcm_process_error("UNREGISTERED", StatusCode::NOT_FOUND, None, StatusCode::BAD_REQUEST).await;
     }
 
     #[tokio::test]

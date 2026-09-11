@@ -115,8 +115,7 @@ impl Config {
     pub fn load(path: &Path) -> Result<Config, String> {
         let mut file = File::open(path).map_err(|e| e.to_string())?;
         let mut contents = String::new();
-        file.read_to_string(&mut contents)
-            .map_err(|e| e.to_string())?;
+        file.read_to_string(&mut contents).map_err(|e| e.to_string())?;
 
         if contents.is_empty() {
             return Err("Config is empty → Server has nothing to do".to_string());
