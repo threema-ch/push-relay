@@ -11,20 +11,20 @@ Possible log types:
 - `[fixed]` for any bug fixes.
 - `[security]` to invite users to upgrade in case of vulnerabilities.
 
-### Unreleased
+## Unreleased
 
 - ...
 
-### [7.0.2][v7.0.2] (2026-03-27)
+## [7.0.2][v7.0.2] (2026-03-27)
 
 - [changed] Bump rust toolchain to 1.94.0
 - [changed] Update dependencies
 
-### [7.0.1][v7.0.1] (2026-03-04)
+## [7.0.1][v7.0.1] (2026-03-04)
 
 - [changed] Update dependencies
 
-### [7.0.0][v7.0.0] (2026-02-06)
+## [7.0.0][v7.0.0] (2026-02-06)
 
 - [changed] Bump rust toolchain to 1.93.0
 - [changed] Update dependencies
@@ -32,23 +32,23 @@ Possible log types:
 - [changed] Update reqwest to 0.13.1
 - [changed] Migrate to edition 2024
 
-### [6.1.1][v6.1.1] (2025-12-12)
+## [6.1.1][v6.1.1] (2025-12-12)
 
 - [changed] Bump rust toolchain to 1.92.0
 - [changed] Update dependencies
 
-### [6.1.0][v6.1.0] (2025-11-12)
+## [6.1.0][v6.1.0] (2025-11-12)
 
 - [changed] Update dependencies
 - [changed] Bump rust toolchain to 1.91.1
 - [changed] Make APNS and FCM config optional
 
-### [6.0.1][v6.0.1] (2025-09-05)
+## [6.0.1][v6.0.1] (2025-09-05)
 
 - [changed] Bump rust toolchain to 1.89.0
 - [changed] Update dependencies
 
-### [6.0.0][v6.0.0] (2025-07-29)
+## [6.0.0][v6.0.0] (2025-07-29)
 
 - [changed] Bump rust toolchain to 1.88.0
 - [changed] Change type of `project_id` to String
@@ -56,115 +56,110 @@ Possible log types:
 - [changed] Add timeout for FCM requests. Has to be added to config if a different value than the default should be
   taken.
 
-### [5.0.4][v5.0.4] (2025-05-16)
+## [5.0.4][v5.0.4] (2025-05-16)
 
 - [security] Update dependencies and fix vulnerabilities
 
-### [5.0.3][v5.0.3] (2025-01-27)
+## [5.0.3][v5.0.3] (2025-01-27)
 
 - [changed] Update dependencies
 - [changed] Bump rust toolchain to 1.84
 
-### [5.0.2][v5.0.2] (2024-08-14)
+## [5.0.2][v5.0.2] (2024-08-14)
 
 - [changed] Update dependencies
 
-### [5.0.1][v5.0.1] (2024-06-20)
+## [5.0.1][v5.0.1] (2024-06-20)
 
 - [changed] Update dependencies
 
-### [v5.0.0][v5.0.0] (2024-05-29)
+## [v5.0.0][v5.0.0] (2024-05-29)
 
 - [changed] Migrate from legacy FCM HTTP API to HTTP v1
 
 Note that the FCM config format has changed! See README for details.
 
-### [v4.3.0][v4.3.0] (2024-05-17)
+## [v4.3.0][v4.3.0] (2024-05-17)
 
 - [changed] Updated dependencies
 - [changed] Migrated from `hyper` to `reqwest` (client) and `axum` (server)
 - [changed] Switch from `log` crate to `tracing`
 - [fixed] Prevent potential panic when handling APNs push requests
 
-### [v4.2.3][v4.2.3] (2024-02-02)
+## [v4.2.3][v4.2.3] (2024-02-02)
 
 - [changed] Updated dependencies
 
-### [v4.2.2][v4.2.2] (2023-11-14)
+## [v4.2.2][v4.2.2] (2023-11-14)
 
 - [changed] Updated dependencies
 
-### [v4.2.1][v4.2.1] (2023-07-05)
+## [v4.2.1][v4.2.1] (2023-07-05)
 
 - [changed] Improved logging
 
-### [v4.2.0][v4.2.0] (2023-06-27)
+## [v4.2.0][v4.2.0] (2023-06-27)
 
 - [added] Support for Threema Gateway push (#52)
 - [changed] Updated dependencies
 
-### [v4.1.1][v4.1.1] (2022-03-31)
+## [v4.1.1][v4.1.1] (2022-03-31)
 
 - [added] Log APNs push type (#49)
 - [changed] Updated dependencies
 
-### [v4.1.0][v4.1.0] (2022-03-17)
+## [v4.1.0][v4.1.0] (2022-03-17)
 
 - [added] APNs: Support non-silent push notifications as well (#46)
 - [changed] Updated dependencies
 
-### [v4.0.0][v4.0.0] (2021-03-15)
+## [v4.0.0][v4.0.0] (2021-03-15)
 
 - [added] Support for HMS
 - [added] FCM: Support for connection reuse and TLS session resumption
-- [changed] The config file format was changed from INI to TOML and the default
-  filename was changed from `config.ini` to `config.toml`. Since TOML is a
-  superset of INI, the existing config should remain valid. But the change
-  simplifies parsing and allows more data types (like lists and maps).
+- [changed] The config file format was changed from INI to TOML and the default filename was changed from `config.ini`
+  to `config.toml`. Since TOML is a superset of INI, the existing config should remain valid. But the change simplifies
+  parsing and allows more data types (like lists and maps).
 
-### [v3.4.0][v3.4.0] (2020-01-13)
+## [v3.4.0][v3.4.0] (2020-01-13)
 
-- [security] Updated dependencies, including a [security update in a transitive
-  dependency][rustsec-2019-033]
+- [security] Updated dependencies, including a [security update in a transitive dependency][rustsec-2019-033]
 - [changed] Require at least Rust 1.36 to build (previous: 1.33)
 
 [rustsec-2019-033]: https://rustsec.org/advisories/RUSTSEC-2019-0033.html
 
-### [v3.3.0][v3.3.0] (2019-08-05)
+## [v3.3.0][v3.3.0] (2019-08-05)
 
-- [security] Updated dependencies, including a [security update in a transitive
-  dependency][memoffset-9]
+- [security] Updated dependencies, including a [security update in a transitive dependency][memoffset-9]
 - [changed] Require at least Rust 1.33 to build (previous: 1.31)
 
 [memoffset-9]: https://github.com/Gilnaa/memoffset/issues/9
 
-### [v3.2.1][v3.2.1] (2019-07-08)
+## [v3.2.1][v3.2.1] (2019-07-08)
 
-- [security] Updated dependencies, including a [security update in a transitive
-  dependency][smallvec-148] (#29)
+- [security] Updated dependencies, including a [security update in a transitive dependency][smallvec-148] (#29)
 
 [smallvec-148]: https://github.com/servo/rust-smallvec/issues/148
 
-### [v3.2.0][v3.2.0] (2019-05-23)
+## [v3.2.0][v3.2.0] (2019-05-23)
 
 - [added] APNS: Apply `collapse_key` and `ttl` if specified (#24)
 - [fixed] APNs: Use timestamp based on TTL instead of the TTL itself (#25)
 - [changed] Refined error handling (#26)
 
-### [v3.1.0][v3.1.0] (2019-04-25)
+## [v3.1.0][v3.1.0] (2019-04-25)
 
 - [added] Allow clients to override the FCM TTL (#19)
 - [added] Allow clients to override the FCM collapse key (#20)
 - [changed] Improve handling of FCM push errors (#18)
 
-### [v3.0.0][v3.0.0] (2019-01-24)
+## [v3.0.0][v3.0.0] (2019-01-24)
 
 - [changed] Use new FCM API endpoint
 - [changed] Rename `[gcm]` section in config.ini to `[fcm]`
-- [changed] Rename `type=gcm` request key to `type=fcm`
-  (the `gcm` version will still work but is deprecated)
+- [changed] Rename `type=gcm` request key to `type=fcm` (the `gcm` version will still work but is deprecated)
 
-### [v2.2.0][v2.2.0] (2018-12-17)
+## [v2.2.0][v2.2.0] (2018-12-17)
 
 - [changed] Switch to Rust 2018 edition
 - [changed] Require at least Rust 1.31 to build (previous: 1.30)
