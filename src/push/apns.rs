@@ -10,9 +10,7 @@ use apns_h2::{
     ClientConfig, CollapseId, PushType,
     client::{Client, Endpoint},
     error::Error as A2Error,
-    request::notification::{
-        DefaultNotificationBuilder, NotificationBuilder, NotificationOptions, Priority,
-    },
+    request::notification::{DefaultNotificationBuilder, NotificationBuilder, NotificationOptions, Priority},
     response::ErrorReason,
 };
 
@@ -46,12 +44,7 @@ impl ApnsState {
 }
 
 /// Create a new APNs client instance.
-pub fn create_client<S>(
-    endpoint: Endpoint,
-    api_key: impl Read,
-    team_id: S,
-    key_id: S,
-) -> Result<Client, InitError>
+pub fn create_client<S>(endpoint: Endpoint, api_key: impl Read, team_id: S, key_id: S) -> Result<Client, InitError>
 where
     S: Into<String>,
 {
@@ -79,18 +72,14 @@ pub async fn send_push(
                 .expect("Could not retrieve UNIX timestamp");
             now.checked_add(Duration::from_secs(u64::from(ttl)))
                 .map(|expiration| expiration.as_secs())
-        }
+        },
     };
 
     // CHeck if it is a voip push
     let is_voip = bundle_id.ends_with(".voip");
 
     // Determine type of notification
-    let apns_push_type = Some(if is_voip {
-        PushType::Voip
-    } else {
-        PushType::Alert
-    });
+    let apns_push_type = Some(if is_voip { PushType::Voip } else { PushType::Alert });
 
     // Notification options
     let options = NotificationOptions {
@@ -119,16 +108,16 @@ pub async fn send_push(
     };
 
     let data = ThreemaPayload::new(session, affiliation, version, false);
-    payload.add_custom_data(PAYLOAD_KEY, &data).map_err(|e| {
-        SendPushError::Internal(format!("Could not add custom data to APNs payload: {e}"))
-    })?;
+    payload
+        .add_custom_data(PAYLOAD_KEY, &data)
+        .map_err(|e| SendPushError::Internal(format!("Could not add custom data to APNs payload: {e}")))?;
     trace!("Sending payload: {:#?}", payload);
 
     match client.send(payload).await {
         Ok(response) => {
             debug!("Success details: {:?}", response);
             Ok(())
-        }
+        },
         Err(e) => {
             if let A2Error::ResponseError(ref resp) = e
                 && let Some(ref body) = resp.error
@@ -184,9 +173,7 @@ pub async fn send_push(
             }
 
             // Treat all other errors as server errors
-            Err(SendPushError::RemoteServer(format!(
-                "Push was unsuccessful: {e}"
-            )))
-        }
+            Err(SendPushError::RemoteServer(format!("Push was unsuccessful: {e}")))
+        },
     }
 }

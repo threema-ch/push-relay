@@ -27,8 +27,7 @@ Request keys:
 - `version`: Threema Web protocol version
 - `affiliation` (optional): An identifier for affiliating consecutive pushes
 - `ttl` (optional): The lifespan of a push message, defaults to 90 seconds
-- `collapse_key`: (optional) A parameter identifying a group of push messages that can be
-  collapsed.
+- `collapse_key`: (optional) A parameter identifying a group of push messages that can be collapsed.
 - `bundleid` (APNs only): The bundle id to use
 - `endpoint` (APNs only): Either `p` (production) or `s` (sandbox)
 - `appid` (HMS only): Can be used to differentiate between multiple configs
@@ -37,14 +36,16 @@ Request keys:
 
 Examples:
 
-    curl -X POST -H "Origin: https://localhost" localhost:3000/push \
-        -d "type=apns&token=asdf&session=123deadbeef&version=3&bundleid=com.example.app&endpoint=s"
-    curl -X POST -H "Origin: https://localhost" localhost:3000/push \
-        -d "type=fcm&token=asdf&session=123deadbeef&version=3"
-    curl -X POST -H "Origin: https://localhost" localhost:3000/push \
-        -d "type=hms&appid=123456&token=asdf&session=123deadbeef&version=3"
-    curl -X POST -H "Origin: https://localhost" localhost:3000/push \
-        -d "type=threema-gateway&session=123deadbeef&version=3&identity=ECHOECHO&public_key=0000000000000000000000000000000000000000000000000000000000000000"
+```sh
+curl -X POST -H "Origin: https://localhost" localhost:3000/push \
+    -d "type=apns&token=asdf&session=123deadbeef&version=3&bundleid=com.example.app&endpoint=s"
+curl -X POST -H "Origin: https://localhost" localhost:3000/push \
+    -d "type=fcm&token=asdf&session=123deadbeef&version=3"
+curl -X POST -H "Origin: https://localhost" localhost:3000/push \
+    -d "type=hms&appid=123456&token=asdf&session=123deadbeef&version=3"
+curl -X POST -H "Origin: https://localhost" localhost:3000/push \
+    -d "type=threema-gateway&session=123deadbeef&version=3&identity=ECHOECHO&public_key=0000000000000000000000000000000000000000000000000000000000000000"
+```
 
 Possible response codes:
 
@@ -57,16 +58,14 @@ Possible response codes:
 
 The payload format looks like this:
 
-- `wcs`: Webclient session (sha256 hash of the public permanent key of the
-  initiator), `string`
+- `wcs`: Webclient session (sha256 hash of the public permanent key of the initiator), `string`
 - `wca`: An optional identifier for affiliating consecutive pushes, `string` or `null`
 - `wct`: Unix epoch timestamp of the request in seconds, `i64`
 - `wcv`: Protocol version, `u16`
 
 ### APNs
 
-The APNs message contains a key "3mw" containing the payload data as specified
-above.
+The APNs message contains a key "3mw" containing the payload data as specified above.
 
 ### FCM / HMS / Threema Gateway
 
@@ -78,52 +77,64 @@ You need the Rust compiler. First, create an empty `config.toml` file.
 
 To support FCM, you need to add the `fcm` config section that should look like this:
 
-    [fcm]
-    service_account_key_base64 = "aHR0cHM6Ly93d3cueW91dHViZS5jb20vd2F0Y2g/dj1kUXc0dzlXZ1hjUQo="
-    project_id = 12345654321
-    max_retries = 6
-    # Optional, default is 60 s
-    timeout_secs = 60
+```text
+[fcm]
+service_account_key_base64 = "aHR0cHM6Ly93d3cueW91dHViZS5jb20vd2F0Y2g/dj1kUXc0dzlXZ1hjUQo="
+project_id = 12345654321
+max_retries = 6
+# Optional, default is 60 s
+timeout_secs = 60
+```
 
 To support APNS, add the `apns` section and a keyfile:
 
-    [apns]
-    keyfile = "your-keyfile.p8"
-    key_id = "AB123456XY"
-    team_id = "CD987654YZ"
+```text
+[apns]
+keyfile = "your-keyfile.p8"
+key_id = "AB123456XY"
+team_id = "CD987654YZ"
+```
 
-To support HMS as well, you need to add one or more named HMS config sections.
-The name should correspond to the App ID (and currently matches the Client ID).
+To support HMS as well, you need to add one or more named HMS config sections. The name should correspond to the App ID
+(and currently matches the Client ID).
 
-    [hms.app-id-1]
-    client_id = "your-client-id"
-    client_secret = "your-client-secret"
+```text
+[hms.app-id-1]
+client_id = "your-client-id"
+client_secret = "your-client-secret"
 
-    [hms.app-id-2]
-    client_id = "your-client-id"
-    client_secret = "your-client-secret"
+[hms.app-id-2]
+client_id = "your-client-id"
+client_secret = "your-client-secret"
+```
 
-To support Threema Gateway, the following config sections need to be added.
-Note: The apps only support messages sent from `*3MAPUSH`.
+To support Threema Gateway, the following config sections need to be added. Note: The apps only support messages sent
+from `*3MAPUSH`.
 
-    [threema_gateway]
-    base_url = "https://msgapi.threema.ch"
-    identity = "*3MAPUSH"
-    secret = "secret-for-*3MAPUSH"
-    private_key_file = "private-key-file-for-*3MAPUSH"
+```text
+[threema_gateway]
+base_url = "https://msgapi.threema.ch"
+identity = "*3MAPUSH"
+secret = "secret-for-*3MAPUSH"
+private_key_file = "private-key-file-for-*3MAPUSH"
+```
 
 If you want to log the pushes to InfluxDB, add the following section:
 
-    [influxdb]
-    connection_string = "http://127.0.0.1:8086"
-    user = "foo"
-    pass = "bar"
-    db = "baz"
+```text
+[influxdb]
+connection_string = "http://127.0.0.1:8086"
+user = "foo"
+pass = "bar"
+db = "baz"
+```
 
 Then simply run
 
-    export RUST_LOG=push_relay=debug,hyper=info,a2=info,tower=debug
-    cargo run
+```sh
+export RUST_LOG=push_relay=debug,hyper=info,a2=info,tower=debug
+cargo run
+```
 
 ...to build and start the server in debug mode.
 
@@ -137,23 +148,27 @@ Then simply run
 
 To run tests:
 
-    cargo test
+```sh
+cargo test
+```
 
 ## Linting
 
 To run lints:
 
-    $ rustup component add clippy
-    $ cargo clean && cargo clippy --all-targets
+```sh
+rustup component add clippy
+cargo clean && cargo clippy --all-targets
+```
 
 ## License
 
 Licensed under either of
 
 - Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-  http://www.apache.org/licenses/LICENSE-2.0)
+  <http://www.apache.org/licenses/LICENSE-2.0>)
 - MIT license ([LICENSE-MIT](LICENSE-MIT) or
-  http://opensource.org/licenses/MIT)
+  <http://opensource.org/licenses/MIT>)
 
 at your option.
 

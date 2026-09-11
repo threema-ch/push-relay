@@ -23,14 +23,8 @@ pub struct HmsToken(pub String);
 pub enum PushToken {
     Fcm(FcmToken),
     Apns(ApnsToken),
-    Hms {
-        token: HmsToken,
-        app_id: String,
-    },
-    ThreemaGateway {
-        identity: String,
-        public_key: [u8; 32],
-    },
+    Hms { token: HmsToken, app_id: String },
+    ThreemaGateway { identity: String, public_key: [u8; 32] },
 }
 
 impl PushToken {
@@ -96,12 +90,7 @@ where
 }
 
 impl<'a> ThreemaPayload<'a> {
-    pub fn new(
-        session_id: &'a str,
-        affiliation_id: Option<&'a str>,
-        version: u16,
-        is_fcm_payload: bool,
-    ) -> Self {
+    pub fn new(session_id: &'a str, affiliation_id: Option<&'a str>, version: u16, is_fcm_payload: bool) -> Self {
         let timestamp = Utc::now().timestamp();
         ThreemaPayload {
             session_id,

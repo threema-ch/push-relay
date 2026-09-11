@@ -50,6 +50,7 @@ impl HmsEndpointConfig {
             push_endpoint,
         })
     }
+
     fn hms_endpoint(&self, endpoint_type: EndpointType) -> &str {
         match endpoint_type {
             EndpointType::Login => self.login_endpoint.as_ref(),
@@ -62,11 +63,7 @@ impl HmsEndpointConfig {
     }
 
     fn hms_push_url(&self, app_id: &str) -> String {
-        format!(
-            "{}/v1/{}/messages:send",
-            self.hms_endpoint(EndpointType::Push),
-            app_id
-        )
+        format!("{}/v1/{}/messages:send", self.hms_endpoint(EndpointType::Push), app_id)
     }
 }
 
@@ -90,7 +87,7 @@ pub enum Urgency {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Category {
-    //PlayVoice,
+    // PlayVoice,
     Voip,
 }
 
@@ -168,7 +165,7 @@ impl fmt::Display for HmsCode {
         const PREFIX: &str = "HMS push failed";
         match &self {
             &Self::Other(reason) => write!(f, "{PREFIX} with unspecified code: {reason}"),
-            _ => write!(f, "{}: {:?}", PREFIX, &self),
+            _ => write!(f, "{}: {:?}", PREFIX, self),
         }
     }
 }
@@ -257,10 +254,7 @@ impl HmsContext {
     }
 
     /// Request new OAuth2 credentials from the Huawei server.
-    async fn request_new_credentials(
-        &self,
-        config: &SharedHmsConfig,
-    ) -> Result<HmsCredentials, SendPushError> {
+    async fn request_new_credentials(&self, config: &SharedHmsConfig) -> Result<HmsCredentials, SendPushError> {
         debug!("Requesting OAuth2 credentials");
 
         // Prepare request
@@ -285,9 +279,10 @@ impl HmsContext {
         let status = response.status();
 
         // Fetch body
-        let body_bytes = response.bytes().await.map_err(|e| {
-            SendPushError::RemoteAuth(format!("Could not read HMS auth response body: {e}"))
-        })?;
+        let body_bytes = response
+            .bytes()
+            .await
+            .map_err(|e| SendPushError::RemoteAuth(format!("Could not read HMS auth response body: {e}")))?;
 
         // Validate status code
         if status != StatusCode::OK {
@@ -302,23 +297,17 @@ impl HmsContext {
         trace!("OAuth2 response: HTTP {}", status);
 
         // Decode UTF8 bytes
-        let json_body = from_utf8(&body_bytes).map_err(|_| {
-            SendPushError::RemoteAuth("Could not decode response JSON: Invalid UTF-8".into())
-        })?;
+        let json_body = from_utf8(&body_bytes)
+            .map_err(|_| SendPushError::RemoteAuth("Could not decode response JSON: Invalid UTF-8".into()))?;
 
         // Parse JSON
         let data: AuthResponse = json::from_str(json_body).map_err(|e| {
-            SendPushError::RemoteAuth(format!(
-                "Could not decode response JSON: `{json_body}` (Reason: {e})"
-            ))
+            SendPushError::RemoteAuth(format!("Could not decode response JSON: `{json_body}` (Reason: {e})"))
         })?;
 
         // Validate type
         if data.token_type != "Bearer" {
-            warn!(
-                "Returned OAuth2 token is of type '{}', not 'Bearer'",
-                data.token_type
-            );
+            warn!("Returned OAuth2 token is of type '{}', not 'Bearer'", data.token_type);
         }
 
         Ok(data.into())
@@ -329,10 +318,7 @@ impl HmsContext {
     /// If there are no credentials so far, fetch and store them.
     /// If the credentials are outdated, refresh them.
     /// Otherwise, just return a copy directly.
-    pub async fn get_active_credentials(
-        &self,
-        config: &SharedHmsConfig,
-    ) -> Result<HmsCredentials, SendPushError> {
+    pub async fn get_active_credentials(&self, config: &SharedHmsConfig) -> Result<HmsCredentials, SendPushError> {
         // Lock mutex
         let mut credentials = self.credentials.lock().await;
 
@@ -343,7 +329,7 @@ impl HmsContext {
                 *credentials = Some(new_credentials.clone());
                 info!("Fetched initial OAuth credentials");
                 Ok(new_credentials)
-            }
+            },
 
             // Valid credentials found
             Some(ref credentials) if !credentials.expired() => {
@@ -352,7 +338,7 @@ impl HmsContext {
                     (credentials.expiration - Instant::now()).as_secs()
                 );
                 Ok(credentials.clone())
-            }
+            },
 
             // Credentials must be renewed
             Some(_) => {
@@ -360,7 +346,7 @@ impl HmsContext {
                 *credentials = Some(new_credentials.clone());
                 info!("Refreshed OAuth credentials");
                 Ok(new_credentials)
-            }
+            },
         }
     }
 
@@ -388,16 +374,8 @@ pub async fn send_push(
         message: Message {
             data: json::to_string(&threema_payload).expect("Could not encode JSON threema payload"),
             android: AndroidConfig {
-                urgency: if high_priority {
-                    Urgency::High
-                } else {
-                    Urgency::Normal
-                },
-                category: if high_priority {
-                    Some(Category::Voip)
-                } else {
-                    None
-                },
+                urgency: if high_priority { Urgency::High } else { Urgency::Normal },
+                category: if high_priority { Some(Category::Voip) } else { None },
                 ttl: format!("{ttl}s"),
             },
             token: &[&push_token.0],
@@ -418,10 +396,7 @@ pub async fn send_push(
         .post(config.hms_push_url(&context.config.client_id))
         .header(CONTENT_TYPE, "application/json; charset=UTF-8")
         .header(CONTENT_LENGTH, &*payload_string.len().to_string())
-        .header(
-            AUTHORIZATION,
-            &format!("Bearer {}", credentials.access_token),
-        )
+        .header(AUTHORIZATION, &format!("Bearer {}", credentials.access_token))
         .body(payload_string)
         .send()
         .await
@@ -431,9 +406,10 @@ pub async fn send_push(
     let status = response.status();
 
     // Fetch body
-    let body_bytes = response.bytes().await.map_err(|e| {
-        SendPushError::RemoteServer(format!("Could not read HMS auth response body: {e}"))
-    })?;
+    let body_bytes = response
+        .bytes()
+        .await
+        .map_err(|e| SendPushError::RemoteServer(format!("Could not read HMS auth response body: {e}")))?;
 
     // Decode UTF8 bytes
     let body = match from_utf8(&body_bytes) {
@@ -445,33 +421,26 @@ pub async fn send_push(
     match status {
         StatusCode::OK => {
             trace!("HMS push request returned HTTP 200: {}", body);
-        }
+        },
         StatusCode::BAD_REQUEST => {
             return Err(SendPushError::RemoteClient(format!("Bad request: {body}")));
-        }
+        },
         StatusCode::INTERNAL_SERVER_ERROR | StatusCode::BAD_GATEWAY => {
-            return Err(SendPushError::RemoteServer(format!(
-                "HMS server error: {body}"
-            )));
-        }
+            return Err(SendPushError::RemoteServer(format!("HMS server error: {body}")));
+        },
         StatusCode::SERVICE_UNAVAILABLE => {
-            return Err(SendPushError::RemoteServer(format!(
-                "HMS quota reached: {body}"
-            )));
-        }
+            return Err(SendPushError::RemoteServer(format!("HMS quota reached: {body}")));
+        },
         _other => {
             return Err(SendPushError::Internal(format!(
                 "Unexpected status code: HTTP {status}: {body}"
             )));
-        }
+        },
     }
 
     // Parse JSON
-    let data: PushResponse = json::from_str(body).map_err(|e| {
-        SendPushError::Internal(format!(
-            "Could not decode response JSON: `{body}` (Reason: {e})"
-        ))
-    })?;
+    let data: PushResponse = json::from_str(body)
+        .map_err(|e| SendPushError::Internal(format!("Could not decode response JSON: `{body}` (Reason: {e})")))?;
 
     // Validate HMS code
     let code = HmsCode::from(&*data.code);
@@ -480,23 +449,19 @@ pub async fn send_push(
         HmsCode::Success => Ok(()),
 
         // Client errors
-        HmsCode::SomeInvalidTokens | HmsCode::InvalidTokens => Err(SendPushError::RemoteClient(
-            "Invalid push token(s)".to_string(),
-        )),
+        HmsCode::SomeInvalidTokens | HmsCode::InvalidTokens => {
+            Err(SendPushError::RemoteClient("Invalid push token(s)".to_string()))
+        },
 
         // Potentially temporary errors
-        HmsCode::InternalError => Err(SendPushError::RemoteServer(
-            "HMS internal server error".to_string(),
-        )),
+        HmsCode::InternalError => Err(SendPushError::RemoteServer("HMS internal server error".to_string())),
 
         // Auth errors
         HmsCode::AuthenticationError | HmsCode::AuthorizationExpired => {
             // Clear credentials, since token may be invalid
             context.clear_credentials().await;
-            Err(SendPushError::RemoteServer(format!(
-                "Authentication error: {code:?}"
-            )))
-        }
+            Err(SendPushError::RemoteServer(format!("Authentication error: {code:?}")))
+        },
 
         // Other errors
         other => Err(SendPushError::Internal(format!("{other}"))),
@@ -506,7 +471,6 @@ pub async fn send_push(
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::http_client;
 
     impl HmsEndpointConfig {
@@ -578,13 +542,7 @@ mod tests {
             assert_eq!(credentials, credentials2);
 
             // Refresh credentials
-            context
-                .credentials
-                .lock()
-                .await
-                .as_mut()
-                .unwrap()
-                .expiration = Instant::now() - Duration::from_secs(3);
+            context.credentials.lock().await.as_mut().unwrap().expiration = Instant::now() - Duration::from_secs(3);
             let credentials3 = context.get_active_credentials(&config).await.unwrap();
             let remaining_validity = (credentials3.expiration - Instant::now()).as_secs();
             assert!(remaining_validity > (3600 - 180 - 10));

@@ -42,11 +42,8 @@ mod x25519 {
         fn from(secret: SharedSecret) -> Self {
             // Use HSalsa20 to create a uniformly random key from the shared secret
             Self(
-                hsalsa::<aead::consts::U10>(
-                    GenericArray::from_slice(secret.as_bytes()),
-                    &GenericArray::default(),
-                )
-                .into(),
+                hsalsa::<aead::consts::U10>(GenericArray::from_slice(secret.as_bytes()), &GenericArray::default())
+                    .into(),
             )
         }
     }
@@ -71,8 +68,7 @@ pub async fn send_push(
     // Encode and encrypt
     let (nonce, message) = {
         let private_key = StaticSecret::from(private_key.0);
-        let shared_secret =
-            SharedSecretHSalsa20::from(private_key.diffie_hellman(&public_key.into()));
+        let shared_secret = SharedSecretHSalsa20::from(private_key.diffie_hellman(&public_key.into()));
         let cipher = XSalsa20Poly1305::new(shared_secret.as_bytes().into());
         let nonce = XSalsa20Poly1305::generate_nonce(&mut OsRng);
         let mut message: Vec<u8> = [
@@ -117,18 +113,12 @@ pub async fn send_push(
     // Check status code
     match response.status() {
         StatusCode::OK => Ok(()),
-        StatusCode::BAD_REQUEST => Err(SendPushError::RemoteServer(
-            "Receiver identity invalid".into(),
-        )),
+        StatusCode::BAD_REQUEST => Err(SendPushError::RemoteServer("Receiver identity invalid".into())),
         StatusCode::UNAUTHORIZED => Err(SendPushError::RemoteServer(
             "Unauthorized. Is the API secret correct?".into(),
         )),
         StatusCode::PAYMENT_REQUIRED => Err(SendPushError::RemoteServer("Out of credits".into())),
-        StatusCode::PAYLOAD_TOO_LARGE => {
-            Err(SendPushError::RemoteServer("Message too long".into()))
-        }
-        status => Err(SendPushError::Internal(format!(
-            "Unknown error: Status {status}"
-        ))),
+        StatusCode::PAYLOAD_TOO_LARGE => Err(SendPushError::RemoteServer("Message too long".into())),
+        status => Err(SendPushError::Internal(format!("Unknown error: Status {status}"))),
     }
 }

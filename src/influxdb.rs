@@ -22,15 +22,9 @@ type InfluxdbResult = Result<(), InfluxdbError>;
 
 impl Influxdb {
     /// Create a new InfluxDB connection.
-    pub fn new(
-        connection_string: String,
-        user: &str,
-        pass: &str,
-        db: String,
-    ) -> Result<Self, String> {
+    pub fn new(connection_string: String, user: &str, pass: &str, db: String) -> Result<Self, String> {
         // Initialize HTTP client
-        let client =
-            make_client(90).map_err(|e| format!("Failed to initialize http client: {e}"))?;
+        let client = make_client(90).map_err(|e| format!("Failed to initialize http client: {e}"))?;
 
         // Determine hostname
         let hostname = hostname::get().ok().map_or_else(
@@ -65,7 +59,7 @@ impl Influxdb {
         // Send request
         let response = self
             .client
-            .post(format!("{}/query", &self.connection_string))
+            .post(format!("{}/query", self.connection_string))
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
             .header(AUTHORIZATION, &self.authorization)
             .body(body)
@@ -84,10 +78,8 @@ impl Influxdb {
                     .and_then(|body| from_utf8(&body).ok().map(|s| s.to_string()))
                     .unwrap_or_else(|| "[invalid utf8 body]".to_string());
                 Err(InfluxdbError::Other(body))
-            }
-            status => Err(InfluxdbError::Http(format!(
-                "Unexpected status code: {status}"
-            ))),
+            },
+            status => Err(InfluxdbError::Http(format!("Unexpected status code: {status}"))),
         }
     }
 
@@ -97,7 +89,7 @@ impl Influxdb {
         // Send request
         let response = self
             .client
-            .post(format!("{}/write?db={}", &self.connection_string, &self.db))
+            .post(format!("{}/write?db={}", self.connection_string, self.db))
             .header(AUTHORIZATION, &self.authorization)
             .body(body)
             .send()
@@ -108,26 +100,21 @@ impl Influxdb {
         match response.status() {
             StatusCode::NO_CONTENT => Ok(()),
             StatusCode::NOT_FOUND => Err(InfluxdbError::DatabaseNotFound),
-            status => Err(InfluxdbError::Http(format!(
-                "Unexpected status code: {status}"
-            ))),
+            status => Err(InfluxdbError::Http(format!("Unexpected status code: {status}"))),
         }
     }
 
     /// Log the starting of the push relay server.
     pub async fn log_started(&self) -> InfluxdbResult {
         debug!("Logging \"started\" event to InfluxDB");
-        self.log(format!("started,host={} value=1", self.hostname))
-            .await
+        self.log(format!("started,host={} value=1", self.hostname)).await
     }
 
     /// Log a push (either successful or failed) to InfluxDB.
     pub async fn log_push(&self, push_type: &str, version: u16, success: bool) -> InfluxdbResult {
         let success_str = if success { "true" } else { "false" };
         let push_type = push_type.to_ascii_lowercase();
-        debug!(
-            "Logging \"push\" event (success = \"{success_str}\", {push_type}, v{version}) to InfluxDB"
-        );
+        debug!("Logging \"push\" event (success = \"{success_str}\", {push_type}, v{version}) to InfluxDB");
         let hostname = self.hostname.as_str();
         self.log(format!(
             "push,host={hostname},type={push_type},version={version},success={success_str} value=1"

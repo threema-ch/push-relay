@@ -11,7 +11,6 @@ use reqwest::{
     tls,
 };
 use serde::{Deserialize, Serialize as DeriveSerialize, Serialize, Serializer};
-
 use yup_oauth2::{AccessToken, ServiceAccountAuthenticator, authenticator::DefaultAuthenticator};
 
 use crate::{
@@ -134,13 +133,8 @@ pub trait OauthToken: Send {
 }
 
 pub trait RequestOauthToken: Sized + Send + Sync + Clone {
-    async fn new(
-        application_secret: &FcmApplicationSecret,
-        timeout: Duration,
-    ) -> anyhow::Result<Self>;
-    fn request_token(
-        &self,
-    ) -> impl Future<Output = Result<impl OauthToken, SendPushError>> + std::marker::Send;
+    async fn new(application_secret: &FcmApplicationSecret, timeout: Duration) -> anyhow::Result<Self>;
+    fn request_token(&self) -> impl Future<Output = Result<impl OauthToken, SendPushError>> + std::marker::Send;
 }
 
 #[derive(Clone)]
@@ -162,16 +156,15 @@ impl RequestOauthToken for HttpOauthTokenObtainer {
     async fn request_token(&self) -> Result<impl OauthToken, SendPushError> {
         const SCOPES: [&str; 1] = ["https://www.googleapis.com/auth/firebase.messaging"];
 
-        let access_token = self.oauth_authenticator.token(&SCOPES).await.map_err(|e| {
-            SendPushError::RemoteAuth(format!("Could not retrieve bearer token: {e}"))
-        })?;
+        let access_token = self
+            .oauth_authenticator
+            .token(&SCOPES)
+            .await
+            .map_err(|e| SendPushError::RemoteAuth(format!("Could not retrieve bearer token: {e}")))?;
         Ok(FcmAccessToken { access_token })
     }
 
-    async fn new(
-        application_secret: &FcmApplicationSecret,
-        timeout: Duration,
-    ) -> anyhow::Result<Self> {
+    async fn new(application_secret: &FcmApplicationSecret, timeout: Duration) -> anyhow::Result<Self> {
         let service_account_key = yup_oauth2::parse_service_account_key(application_secret)
             .map_err(|e| SendPushError::Internal(format!("Could not read fcm json secret: {e}")))
             .context("Failed to read application secret")?;
@@ -179,13 +172,9 @@ impl RequestOauthToken for HttpOauthTokenObtainer {
             .with_timeout(timeout)
             .build()
             .await
-            .map_err(|e| {
-                SendPushError::Internal(format!("Could not initialize OAuth 2.0 client: {e}"))
-            })
+            .map_err(|e| SendPushError::Internal(format!("Could not initialize OAuth 2.0 client: {e}")))
             .context("Could not build oauth authenticator")?;
-        Ok(Self {
-            oauth_authenticator,
-        })
+        Ok(Self { oauth_authenticator })
     }
 }
 
@@ -335,9 +324,9 @@ async fn _send_push(
     let response = {
         // Acquire token
         let access_token = state.token_obtainer.request_token().await?;
-        let access_token_str = access_token.token().ok_or_else(|| {
-            SendPushError::RemoteAuth("No bearer token present after retrieving it".to_string())
-        })?;
+        let access_token_str = access_token
+            .token()
+            .ok_or_else(|| SendPushError::RemoteAuth("No bearer token present after retrieving it".to_string()))?;
 
         // Send request
         state
@@ -376,12 +365,12 @@ async fn _send_push(
             return Err(SendPushError::RemoteClient(format!(
                 "Token or payload is invalid: HTTP {status_code}"
             )));
-        }
+        },
         StatusCode::UNAUTHORIZED | StatusCode::PAYMENT_REQUIRED => {
             return Err(SendPushError::RemoteClient(format!(
                 "Unrecoverable error code received: HTTP {status_code}"
             )));
-        }
+        },
         status if can_push_be_retried(status) => {
             if try_counter >= state.config.max_retries {
                 return Err(SendPushError::RemoteServer(format!(
@@ -394,7 +383,7 @@ async fn _send_push(
                 Some(Err(e)) => {
                     info!("Could not parse \"retry-after\": {}", e);
                     DEFAULT_RETRY_AFTER_MILLIS
-                }
+                },
                 None => retry_calculator.calculate_retry_sleep_millis(try_counter),
             };
 
@@ -402,20 +391,19 @@ async fn _send_push(
             debug!("Retrying to send push after {} ms", sleep_time_millis);
 
             return send_push(state, retry_calculator, http_payload, try_counter + 1).await;
-        }
+        },
         // Catch all error codes that cannot be retried
         _ if status_code >= 300 => {
             return Err(SendPushError::RemoteServer(format!(
                 "Unknown http error code: HTTP {status_code}"
             )));
-        }
+        },
         _ => trace!("HTTP status code: {}", status_code),
     }
 
     // Decode UTF8 bytes
-    let json_body = std::str::from_utf8(&body).map_err(|_| {
-        SendPushError::Internal("Could not decode response JSON: Invalid UTF-8".into())
-    })?;
+    let json_body = std::str::from_utf8(&body)
+        .map_err(|_| SendPushError::Internal("Could not decode response JSON: Invalid UTF-8".into()))?;
 
     // Parse JSON
     let data: MessageResponse = serde_json::de::from_str(json_body)
@@ -492,17 +480,10 @@ pub mod test {
     #[test]
     fn test_priority_serialization() {
         assert_eq!(serde_json::to_string(&Priority::High).unwrap(), "\"HIGH\"");
-        assert_eq!(
-            serde_json::to_string(&Priority::Normal).unwrap(),
-            "\"NORMAL\""
-        );
+        assert_eq!(serde_json::to_string(&Priority::Normal).unwrap(), "\"NORMAL\"");
     }
 
-    pub fn get_fcm_error(
-        code: StatusCode,
-        message: &str,
-        status_code_uppercase: &str,
-    ) -> ErrorResponse {
+    pub fn get_fcm_error(code: StatusCode, message: &str, status_code_uppercase: &str) -> ErrorResponse {
         ErrorResponse {
             error: FcmError {
                 code: code.as_u16(),
