@@ -75,7 +75,7 @@ pub async fn send_push(
         },
     };
 
-    // CHeck if it is a voip push
+    // Check if it is a voip push
     let is_voip = bundle_id.ends_with(".voip");
 
     // Determine type of notification
